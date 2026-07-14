@@ -58,6 +58,7 @@ repos:
           - id: bandit
             types: [python]
             require_serial: true
+            args: [--exclude, "tests,build"]
 
     - repo: local
       hooks:
