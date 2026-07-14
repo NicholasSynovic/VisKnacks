@@ -27,8 +27,8 @@ repos:
           #       - id: file-contents-sorter  # Disabled as a sensible default
           #         files: []                 # Add files to to sort here
           - id: fix-byte-order-marker
-          - id: forbid-new-submodules # Disable me if you want submodules
-          - id: forbid-submodules # Disable me if you want submodules
+          # - id: forbid-new-submodules # Disable me if you want submodules
+          # - id: forbid-submodules # Disable me if you want submodules
           - id: mixed-line-ending
             args: [--fix=lf]
           - id: name-tests-test
