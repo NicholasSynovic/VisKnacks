@@ -3,6 +3,7 @@ build:
 	mkdir -p build/.opencode/agents
 	mkdir -p build/.opencode/skills
 	mkdir -p build/dist
+	cp opencode.json.template build/.opencode/opencode.json
 	cp agents/*.md build/.opencode/agents/
 	cp -r $(wildcard skills/*/) build/.opencode/skills/
 	uv build --project mcp/paraview-exec-mcp --out-dir build/dist
