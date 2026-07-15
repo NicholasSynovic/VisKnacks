@@ -10,7 +10,6 @@ build:
 create-dev:
 	git submodule update --init --recursive
 	pre-commit install
-	conda env activate
 
 download-benchmark:
 	mkdir -p benchmark/scivisagentbench
