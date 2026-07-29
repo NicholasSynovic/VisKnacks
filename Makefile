@@ -1,13 +1,15 @@
 .PHONY: build create-dev
 build:
+	# Write agents to OpenCode
 	mkdir -p build/.opencode/agents
-	mkdir -p build/.opencode/skills
-	mkdir -p build/dist
-	cp opencode.json.template build/.opencode/opencode.json
-	cp agents/*.md build/.opencode/agents/
-	cp -r $(wildcard skills/*/) build/.opencode/skills/
-	uv build --project mcp/paraview-exec-mcp --out-dir build/dist
+	find agents/ -type f -not -name "README.md" -exec cp {} build/.opencode/agents/ \;
 
+	# mkdir -p build/.opencode/skills
+	# mkdir -p build/dist
+	# cp opencode.json.template build/.opencode/opencode.json
+	# cp -r $(wildcard skills/*/) build/.opencode/skills/
+	# uv build --project mcp/paraview-exec-mcp --out-dir build/dist
+	#
 create-dev:
 	git submodule update --init --recursive
 	pre-commit install
