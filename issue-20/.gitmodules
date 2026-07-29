@@ -1,0 +1,5 @@
+[submodule "mcp/paraview-exec-mcp"]
+	path = mcp/paraview-exec-mcp
+	url = https://github.com/NicholasSynovic/paraview-exec-mcp
+	branch = 0.3.0
+	shallow = true

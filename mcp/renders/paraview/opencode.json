@@ -1,0 +1,33 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "share": "disabled",
+    "autoupdate": "notify",
+    "experimental": {
+        "openTelemetry": false
+    },
+    "mcp": {
+        "paraview": {
+            "type": "local",
+            "command": [
+                "paraview-mcp",
+                "v1",
+                "--paraview-server",
+                "localhost",
+                "--paraview-port",
+                "11111"
+            ],
+            "enabled": false
+        },
+        "paraview-v2": {
+            "type": "remote",
+            "url": "http://localhost:8080/mcp",
+            "enabled": false
+        },
+        "paraview-v3": {
+            "type": "remote",
+            "url": "http://localhost:8080/mcp",
+            "enabled": true,
+            "timeout": 150000
+        }
+    }
+}

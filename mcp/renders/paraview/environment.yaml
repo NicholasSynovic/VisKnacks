@@ -1,0 +1,29 @@
+# Conda environment that provides the ParaView runtime for paraview-mcp.
+#
+# `paraview.simple` (and the `pvserver` binary) are only installable via
+# conda-forge — they cannot be pip-installed. The active conda env IS the
+# runtime: its Python interpreter (3.10, supplied by the paraview package)
+# is what `pip install -e .` and the `paraview-mcp` console script run on.
+# `.python-version` and pyproject.toml's `requires-python = ">=3.10"` are
+# advisory only; trust the version that conda provides.
+#
+# Usage:
+#   conda env create -f environment.yaml -n paraview_mcp
+#   conda activate paraview_mcp
+#   pip install -e .                  # registers the `paraview-mcp` script
+#   uv sync --group dev               # optional: pre-commit, ruff, uv
+#   pre-commit install                # optional: install git hooks
+#
+# Or, equivalently, `make create-dev` does the env create + pre-commit +
+# `uv sync --group dev` in one step.
+#
+# ParaView version: pinned to 5.13.3 (py310) for reproducibility. Bump
+# only after re-validating against the demo data in `data/`.
+name: paraview_mcp
+channels:
+    - conda-forge
+    - nodefaults
+dependencies:
+    - paraview=5.13.3=py310h494b928_110_qt
+    - pip:
+          - uv==0.11.21
