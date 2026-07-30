@@ -23,11 +23,11 @@ and configuration.
 
 The system has three layers:
 
-| Layer             | Artifact                                 | What it does                                                                                |
-| ----------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------- |
-| OpenCode skill    | `skills/paraview/` (`paraview-coder`)    | Generates complete `pvpython` scripts from natural-language requests                        |
-| OpenCode subagent | `agents/paraview-prompt-formatter.md`    | Converts vague requests into structured ParaView prompts (Step 0 of every skill invocation) |
-| MCP server        | `mcp/renders/paraview/` (`paraview-mcp`) | Exposes `paraview.simple` operations as typed MCP tools; three engine versions (v1/v2/v3)   |
+| Layer                                 | Artifact                                 | What it does                                                                                |
+| ------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------- |
+| OpenCode skill                        | `skills/paraview/` (`paraview-coder`)    | Generates complete `pvpython` scripts from natural-language requests                        |
+| [OpenCode subagent](agents/README.md) | `agents/`                                | Converts vague requests into structured ParaView prompts (Step 0 of every skill invocation) |
+| MCP server                            | `mcp/renders/paraview/` (`paraview-mcp`) | Exposes `paraview.simple` operations as typed MCP tools; three engine versions (v1/v2/v3)   |
 
 `make build` assembles these into `build/.opencode/` for distribution. The
 MCP server is a fork of
