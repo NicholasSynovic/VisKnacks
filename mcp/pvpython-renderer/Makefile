@@ -1,9 +1,8 @@
 .PHONY: build create-dev freeze
 
 build:
-	rm -rf dist
-	uv build
-	uv pip install dist/*.tar.gz
+	rm -rf build
+	conda run -n pvpython_renderer uv build
 
 create-dev:
 	conda env create --file environment.yaml --name pvpython_renderer || \

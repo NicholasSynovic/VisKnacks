@@ -1,6 +1,7 @@
 .PHONY: build create-dev
 build:
 	# Write OpenCode config
+	mkdir -p build/.opencode
 	cp opencode.json.template build/.opencode/opencode.json
 
 	# Write agents to OpenCode
@@ -11,9 +12,9 @@ build:
 	mkdir -p build/.opencode/skills
 	find skills/ -maxdepth 1 -mindepth 1 -type d -exec cp -r {} build/.opencode/skills/ \;
 
-	# mkdir -p build/dist
-	# uv build --project mcp/paraview-exec-mcp --out-dir build/dist
-	#
+	mkdir -p build/dist
+	$(MAKE) -C mcp/pvpython-renderer build
+	cp -r mcp/pvpython-renderer/dist build
 
 download-benchmark:
 	mkdir -p benchmark/scivisagentbench
