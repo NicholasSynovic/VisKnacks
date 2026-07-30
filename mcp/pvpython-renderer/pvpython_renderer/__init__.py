@@ -1,5 +1,9 @@
 from importlib.metadata import PackageNotFoundError, version
 
+# ``pv_mcp.py`` and ``pv_runner.py`` are intentionally import-clean of
+# ``paraview.simple``. Only ``pv_runner.py``, executed as a subprocess under
+# ``pvpython``, imports ParaView at runtime.
+
 
 def _package_version() -> str:
     """Return the installed ``paraview-mcp`` version, or 'unknown'."""

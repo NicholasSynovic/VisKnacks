@@ -3,10 +3,8 @@ LLM prompt constants for the ParaView MCP server.
 
 This module holds the ``default_prompt`` behavioral contract sent to the LLM as
 the FastMCP server ``instructions``. It is intentionally ParaView-free:
-importing it does not pull in ``paraview.simple``, so engines that do not use
-the ParaView API in-process (e.g. v3) can reuse the prompt without requiring a
-ParaView build. Edit ``default_prompt`` deliberately -- it changes model
-behavior.
+importing it does not pull in ``paraview.simple``. Edit ``default_prompt``
+deliberately -- it changes model behavior.
 """
 
 # Default prompt that instructs the LLM how to interact with ParaView. This is

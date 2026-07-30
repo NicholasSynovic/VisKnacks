@@ -1,19 +1,17 @@
 """
-ParaView MCP server engine (v3, single-tool execute_code).
+ParaView MCP server — single-tool execute_code engine.
 
-Unlike v1/v2 (which share the tool set defined in ``pvpython_renderer.tools``),
-v3 defines its **own** ``FastMCP`` instance and exposes a **single** tool:
-``execute_code``. Like v2 it serves over MCP streamable-http and binds to a
-configurable host/port (the MCP transport address).
+Exposes a **single** tool: ``execute_code``. Serves over MCP streamable-http
+and binds to a configurable host/port (the MCP transport address).
 
-v3 is **self-contained and stateless**: each ``execute_code`` call spawns its
-own short-lived ``pv_runner.py`` (under ``pvpython``) which **listens** for a
-reverse connection, then spawns a single-client ``pvserver`` in
-**reverse-connection mode** which dials back to the runner on ``localhost``.
+This engine is **self-contained and stateless**: each ``execute_code`` call
+spawns its own short-lived ``pv_runner.py`` (under ``pvpython``) which
+**listens** for a reverse connection, then spawns a single-client ``pvserver``
+in **reverse-connection mode** which dials back to the runner on ``localhost``.
 The supplied code runs in the runner, all output is captured, and both
 processes are torn down again. The caller does **not** need to start
-``pvserver`` manually for v3, and there is **no** persistent pipeline state
-between calls (each call starts from a blank ParaView session).
+``pvserver`` manually, and there is **no** persistent pipeline state between
+calls (each call starts from a blank ParaView session).
 
 Reverse-connection mode is used (server dials client) rather than forward mode
 (client dials server) because ``pvserver`` advertises/binds on the machine's
@@ -37,17 +35,14 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-# Import the prompt and logger from ParaView-free modules (NOT from
-# pvpython_renderer.tools, which transitively imports manager.py -> paraview.simple).
-# This keeps the v3 engine process import-clean of ParaView; only the
-# pv_runner.py subprocess (run via pvpython) needs paraview.simple.
+# Import the prompt and logger from ParaView-free modules. This keeps the
+# server process import-clean of ParaView; only the pv_runner.py subprocess
+# (run via pvpython) needs paraview.simple.
 from pvpython_renderer.logger import setup_logging
 from pvpython_renderer.prompts import default_prompt
 
 logger = setup_logging()
 
-# The single FastMCP instance for the v3 engine. Distinct from the shared
-# instance in ``pvpython_renderer.tools`` used by v1/v2.
 mcp = FastMCP("ParaView", instructions=default_prompt)
 
 # Standalone runner script invoked as a subprocess by ``execute_code``. Resolved
@@ -367,7 +362,7 @@ def _write_call_logs(
 
 
 # ============================================================================
-# MCP Tool for ParaView (v3)
+# MCP Tool
 # ============================================================================
 
 
@@ -566,12 +561,12 @@ def run(
     mcp_port: int = 8080,
 ) -> None:
     """
-    Run the v3 MCP server over streamable-http.
+    Run the MCP server over streamable-http.
 
-    CLI parsing and logging setup are performed by ``pvpython_renderer.cli`` and
-    ``pvpython_renderer.main`` before this function is called. v3 manages its own
-    ``pvserver`` per ``execute_code`` call, so no ParaView server address is
-    configured here.
+    CLI parsing and logging setup are performed by ``pvpython_renderer.cli``
+    and ``pvpython_renderer.main`` before this function is called. A fresh
+    ``pvserver`` is spawned per ``execute_code`` call, so no persistent
+    ParaView server address is configured here.
 
     Args:
         mcp_server: Hostname the MCP server binds to (transport).
