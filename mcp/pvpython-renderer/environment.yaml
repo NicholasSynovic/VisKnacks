@@ -19,7 +19,7 @@
 #
 # ParaView version: pinned to 5.13.3 (py310) for reproducibility. Bump
 # only after re-validating against the demo data in `data/`.
-name: paraview_mcp
+name: pvpython_renderer
 channels:
     - conda-forge
     - nodefaults
