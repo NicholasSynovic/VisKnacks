@@ -1,11 +1,16 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "paraview-exec": {
-      "type": "remote",
-      "url": "http://localhost:8080/mcp",
-      "enabled": true,
-      "timeout": 150000
+    "$schema": "https://opencode.ai/config.json",
+    "share": "disabled",
+    "autoupdate": "notify",
+    "experimental": {
+        "openTelemetry": false
+    },
+    "mcp": {
+        "pvpython-renderer-mcp": {
+            "type": "remote",
+            "url": "http://localhost:8080/mcp",
+            "enabled": true,
+            "timeout": 150000
+        }
     }
-  }
 }
