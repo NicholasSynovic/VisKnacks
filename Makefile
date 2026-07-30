@@ -7,16 +7,12 @@ build:
 	# Write skills to OpenCode
 	mkdir -p build/.opencode/skills
 	find skills/ -maxdepth 1 -mindepth 1 -type d -exec cp -r {} build/.opencode/skills/ \;
-	# cp -r skills/. build/.opencode/skills/
-	# find build/.opencode/skills/ -name "README.md" -delete
+
 
 	# mkdir -p build/dist
 	# cp opencode.json.template build/.opencode/opencode.json
 	# uv build --project mcp/paraview-exec-mcp --out-dir build/dist
 	#
-create-dev:
-	git submodule update --init --recursive
-	pre-commit install
 
 download-benchmark:
 	mkdir -p benchmark/scivisagentbench

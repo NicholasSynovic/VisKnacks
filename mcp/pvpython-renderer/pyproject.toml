@@ -6,8 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
 authors = [
-    {name = "Shusen Liu", email = "liu42@llnl.gov"},
-    {name = "Haichao Miao", email = "miao1@llnl.gov"},
+    {name = "Nicholas M. Synovic", email = "nicholas.synovic@gmail.com"},
 ]
 keywords = ["paraview", "mcp", "visualization", "llm", "scientific-visualization"]
 classifiers = [
@@ -28,19 +27,19 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/NicholasSynovic/paraview_mcp"
-Repository = "https://github.com/NicholasSynovic/paraview_mcp"
-Issues = "https://github.com/NicholasSynovic/paraview_mcp/issues"
+Homepage = "https://github.com/NicholasSynovic/VisKnacks"
+Repository = "https://github.com/NicholasSynovic/VisKnacks"
+Issues = "https://github.com/NicholasSynovic/VisKnacks/issues"
 
 [project.scripts]
-paraview-mcp = "paraview_mcp.main:main"
+pvpython-renderer-mcp = "pvpython_renderer.main:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["paraview_mcp"]
+packages = ["pvpython_renderer"]
 
 [tool.ruff]
 # Line length follows .editorconfig (and the former [tool.black] setting).
