@@ -3,12 +3,12 @@ Command-line interface for the ParaView MCP server.
 
 Thin argparse wrapper that defines the CLI surface and returns the parsed
 arguments. Importing this module does not require ParaView; the actual
-server is imported and run by ``paraview_mcp.main``.
+server is imported and run by ``pvpython_renderer.main``.
 """
 
 import argparse
 
-from paraview_mcp import __doi__, __prog__, __version__
+from pvpython_renderer import __doi__, __prog__, __version__
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

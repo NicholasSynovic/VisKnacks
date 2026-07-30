@@ -19,7 +19,7 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
     Configure logging for the ParaView MCP server.
 
     Creates ``~/paraview_logs/`` (if needed) and attaches a file handler
-    writing to ``paraview_mcp_external.log`` plus a stream handler. This
+    writing to ``pvpython_renderer_external.log`` plus a stream handler. This
     function is idempotent: calling it more than once will not attach
     duplicate handlers.
 
@@ -31,7 +31,7 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
     """
     log_dir = Path.home() / "paraview_logs"
     os.makedirs(log_dir, exist_ok=True)
-    log_file = log_dir / "paraview_mcp_external.log"
+    log_file = log_dir / "pvpython_renderer_external.log"
 
     root_logger = logging.getLogger()
 

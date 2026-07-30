@@ -5,8 +5,8 @@ This module defines the single ``FastMCP`` instance and every ``@mcp.tool()``
 exposed by the server. Both engines import the same ``mcp`` instance from
 here and differ only in transport:
 
-- ``paraview_mcp.v1.pv_mcp`` runs it over stdio.
-- ``paraview_mcp.v2.pv_mcp`` runs it over streamable-http.
+- ``pvpython_renderer.v1.pv_mcp`` runs it over stdio.
+- ``pvpython_renderer.v2.pv_mcp`` runs it over streamable-http.
 
 The ParaView manager is a module global so the tool functions can reference
 it; each engine's ``run()`` constructs the manager (with CLI screenshot
@@ -15,9 +15,9 @@ settings) and installs it via :func:`set_pv_manager` before serving.
 
 from mcp.server.fastmcp import FastMCP, Image
 
-from paraview_mcp.logger import setup_logging
-from paraview_mcp.manager import ParaViewManager
-from paraview_mcp.prompts import default_prompt
+from pvpython_renderer.logger import setup_logging
+from pvpython_renderer.manager import ParaViewManager
+from pvpython_renderer.prompts import default_prompt
 
 logger = setup_logging()
 

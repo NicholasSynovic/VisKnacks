@@ -2,7 +2,7 @@
 ParaView MCP server engine (v1, stdio transport).
 
 This is a thin shim around the shared tool definitions in
-``paraview_mcp.tools``. The 43 MCP tools and the FastMCP instance live there
+``pvpython_renderer.tools``. The 43 MCP tools and the FastMCP instance live there
 and are shared with the v2 engine; v1 differs only in that it serves over
 stdio.
 
@@ -13,8 +13,8 @@ Usage:
 3. Configure the MCP client (e.g. Claude Desktop) to use this engine.
 """
 
-from paraview_mcp.manager import ParaViewManager
-from paraview_mcp.tools import logger, mcp, set_pv_manager
+from pvpython_renderer.manager import ParaViewManager
+from pvpython_renderer.tools import logger, mcp, set_pv_manager
 
 
 def run(
@@ -28,8 +28,8 @@ def run(
     Connect to ParaView and run the MCP server over stdio.
 
     CLI parsing, logging setup and ``sys.path`` handling for an external
-    ParaView install are performed by ``paraview_mcp.cli`` and
-    ``paraview_mcp.main`` before this function is called.
+    ParaView install are performed by ``pvpython_renderer.cli`` and
+    ``pvpython_renderer.main`` before this function is called.
 
     Args:
         server: ParaView server hostname.
@@ -50,7 +50,7 @@ def run(
         )
     )
 
-    from paraview_mcp.tools import pv_manager
+    from pvpython_renderer.tools import pv_manager
 
     # Connect to ParaView
     pv_manager.connect(server, port)

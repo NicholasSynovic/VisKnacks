@@ -1,5 +1,5 @@
 [project]
-name = "paraview-mcp"
+name = "pvpython-renderer"
 version = "0.3.0"
 description = "MCP server exposing ParaView operations as tools for LLM-driven visualization"
 readme = "README.md"

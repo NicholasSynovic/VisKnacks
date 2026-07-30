@@ -4,7 +4,7 @@ ParaView Instance Manager.
 This class encapsulates the ``paraview.simple`` API to expose a higher-level
 API that is compatible with LLM access/control. It is the single, shared
 implementation used by both the v1 (stdio) and v2 (streamable-http) engines;
-``paraview_mcp.v1`` and ``paraview_mcp.v2`` re-export ``ParaViewManager`` from
+``pvpython_renderer.v1`` and ``pvpython_renderer.v2`` re-export ``ParaViewManager`` from
 here.
 """
 
