@@ -197,7 +197,7 @@ def _extract_source(
     source_lines: list[str],
 ) -> str:
     """
-    Extract the exact source code for an AST node using line/col offsets.
+    Extract the exact source code and remove the docstring for an AST node using line/col offsets.
 
     Dedents the code based on the node's column offset so that extracted
     methods are returned without excess leading whitespace.
@@ -214,15 +214,28 @@ def _extract_source(
     str
         The dedented source code for the node.
     """
-    start_line = node.lineno - 1  # Convert to 0-indexed
-    end_line = node.end_lineno  # Correct for slicing (exclusive)
+
+    start_line = node.lineno - 1
+    end_line = node.end_lineno
     col_offset = node.col_offset
+
+    # If this node has a body, check whether first statement is a docstring
+    body = getattr(node, "body", None)
+    if body:
+        first_stmt = body[0]
+        if (
+            isinstance(first_stmt, ast.Expr)
+            and isinstance(first_stmt.value, ast.Constant)
+            and isinstance(first_stmt.value.value, str)
+        ):
+            # Skip docstring lines
+            doc_end_line = first_stmt.end_lineno
+            start_line = doc_end_line
 
     segment_lines = source_lines[start_line:end_line]
 
     dedented_lines = []
     for line in segment_lines:
-        # Strip leading whitespace up to col_offset if it's all whitespace
         if len(line) >= col_offset and line[:col_offset].strip() == "":
             dedented_lines.append(line[col_offset:])
         else:
