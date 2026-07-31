@@ -4,11 +4,16 @@ build:
 	rm -rf build
 	conda run -n pvpython_rag uv build
 
+clone-paraview:
+	mkdir -p data
+	git clone https://github.com/Kitware/ParaView.git data/paraview-code
+
 create-dev:
 	conda env create --file environment.yaml --name pvpython_rag || \
 		conda env update --file environment.yaml --name pvpython_rag --prune
 	conda run -n pvpython_rag uv sync --group dev
 	conda run -n pvpython_rag uv pip install -e .
+
 
 freeze:
 	conda env export -n pvpython_rag | grep -v "^prefix:" > environment.yaml
