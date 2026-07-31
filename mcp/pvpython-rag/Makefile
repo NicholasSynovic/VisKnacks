@@ -1,4 +1,6 @@
-.PHONY: build create-dev freeze
+.PHONY: build clone-paraview create-dev freeze
+
+CONDA_ENV := pvpython_rag
 
 build:
 	rm -rf build
@@ -9,12 +11,12 @@ clone-paraview:
 	git clone https://github.com/Kitware/ParaView.git data/paraview-code
 
 create-dev:
-	conda env create --file environment.yaml --name pvpython_rag || \
-		conda env update --file environment.yaml --name pvpython_rag --prune
-	conda run -n pvpython_rag uv sync --group dev
-	conda run -n pvpython_rag uv pip install -e .
-
+	conda env create --file environment.yaml --name $(CONDA_ENV) || \
+		conda env update --file environment.yaml --name $(CONDA_ENV) --prune
+	PY_EXEC=$$(conda run -n $(CONDA_ENV) python -c "import sys; print(sys.executable)") && \
+	conda run -n $(CONDA_ENV) uv sync --python "$$PY_EXEC" && \
+	conda run -n $(CONDA_ENV) uv pip install --python "$$PY_EXEC" -e .
 
 freeze:
-	conda env export -n pvpython_rag | grep -v "^prefix:" > environment.yaml
+	conda env export -n $(CONDA_ENV) | grep -v "^prefix:" > environment.yaml
 	@echo "NOTE: After freeze, manually verify channels include 'nodefaults' and pip section does not contain 'pvpython_rag'."
