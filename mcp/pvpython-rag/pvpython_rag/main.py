@@ -23,8 +23,8 @@ from sentence_transformers import SentenceTransformer
 
 from pvpython_rag.extract_functions import extract_functions
 
-# EMBEDDING_MODEL_NAME = "nomic-ai/CodeRankEmbed"
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MODEL_NAME = "nomic-ai/CodeRankEmbed"
+# EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_FILENAME = "index.faiss"
 METADATA_FILENAME = "metadata.json"
 
@@ -106,16 +106,20 @@ def embed_records(
         A 2D float32 array of shape ``(len(records), embedding_dim)``
         containing L2-normalized embeddings, one row per record.
     """
-    model = SentenceTransformer(model_name, trust_remote_code=True)
+    model = SentenceTransformer(
+        model_name,
+        trust_remote_code=True,
+        device="cuda",
+    )
 
     # Prevent extremely long functions from overwhelming self-attention memory
-    model.max_seq_length = 512
+    model.max_seq_length = 2048
 
     code_snippets = [record["code"] for record in records]
 
     embeddings = model.encode(
         code_snippets,
-        batch_size=8,  # Prevents out-of-memory errors
+        batch_size=1,  # Prevents out-of-memory errors
         convert_to_numpy=True,
         normalize_embeddings=True,
         show_progress_bar=True,
