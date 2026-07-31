@@ -2,8 +2,8 @@
 extract_functions.py
 
 Extracts top-level function definitions and class method definitions
-from an entire Python project directory into a dict mapping fully
-qualified names to their source code (including docstrings).
+from an entire Python project directory into a list of dicts, each
+containing the fully qualified name, docstring, and source code.
 
 Uses the `ast` module for static analysis.
 Requires Python 3.13+.
@@ -11,9 +11,9 @@ Requires Python 3.13+.
 
 import argparse
 import ast
-import json
 import sys
 from pathlib import Path
+import pandas as pd
 
 # ---------------------------------------------------------------------------
 # Default directories and patterns to exclude during traversal
@@ -74,8 +74,8 @@ def cli(args: list[str] | None = None) -> argparse.Namespace:
         prog="extract_functions",
         description=(
             "Extract top-level functions and class methods from all Python "
-            "source files in a project directory into a JSON mapping of "
-            "{FQN: source_code}."
+            "source files in a project directory into a JSON list of "
+            "{function, docstring, code} records."
         ),
     )
 
@@ -231,10 +231,30 @@ def _extract_source(
     return "".join(dedented_lines).rstrip("\n")
 
 
+def _extract_docstring(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> str:
+    """
+    Extract the docstring from a function or async function AST node.
+
+    Parameters
+    ----------
+    node : ast.FunctionDef | ast.AsyncFunctionDef
+        The function node to extract the docstring from.
+
+    Returns
+    -------
+    str
+        The docstring text, or an empty string if no docstring is present.
+    """
+    docstring = ast.get_docstring(node)
+    return docstring if docstring is not None else ""
+
+
 def _extract_from_file(
     filepath: Path,
     root: Path,
-) -> dict[str, str]:
+) -> list[dict[str, str]]:
     """
     Extract top-level functions and class methods from a single .py file.
 
@@ -247,8 +267,9 @@ def _extract_from_file(
 
     Returns
     -------
-    dict[str, str]
-        A mapping of fully qualified names to source code.
+    list[dict[str, str]]
+        A list of dicts, each with keys ``function``, ``docstring``,
+        and ``code``.
     """
     source = filepath.read_text(encoding="utf-8")
     source_lines = source.splitlines(keepends=True)
@@ -260,10 +281,35 @@ def _extract_from_file(
             f"Warning: Skipping {filepath} due to syntax error: {exc}",
             file=sys.stderr,
         )
-        return {}
+        return []
 
     module_fqn = _resolve_module_fqn(filepath, root)
-    results: dict[str, str] = {}
+    results: list[dict[str, str]] = []
+
+    def _make_record(
+        fqn: str,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> dict[str, str]:
+        """
+        Build a function record dict from an AST node.
+
+        Parameters
+        ----------
+        fqn : str
+            The fully qualified name for the function.
+        node : ast.FunctionDef | ast.AsyncFunctionDef
+            The function AST node.
+
+        Returns
+        -------
+        dict[str, str]
+            Dict with keys ``function``, ``docstring``, and ``code``.
+        """
+        return {
+            "function": fqn,
+            "docstring": _extract_docstring(node),
+            "code": _extract_source(node, source_lines),
+        }
 
     def _visit_class(node: ast.ClassDef, prefix: str) -> None:
         """
@@ -281,7 +327,7 @@ def _extract_from_file(
         for child in ast.iter_child_nodes(node):
             if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
                 fqn = f"{prefix}.{child.name}"
-                results[fqn] = _extract_source(child, source_lines)
+                results.append(_make_record(fqn, child))
 
             elif isinstance(child, ast.ClassDef):
                 nested_prefix = f"{prefix}.{child.name}"
@@ -293,7 +339,7 @@ def _extract_from_file(
     for node in ast.iter_child_nodes(tree):
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             fqn = f"{module_fqn}.{node.name}" if module_fqn else node.name
-            results[fqn] = _extract_source(node, source_lines)
+            results.append(_make_record(fqn, node))
 
         elif isinstance(node, ast.ClassDef):
             class_prefix = f"{module_fqn}.{node.name}" if module_fqn else node.name
@@ -302,7 +348,7 @@ def _extract_from_file(
     return results
 
 
-def extract_functions(project_dir: str) -> dict[str, str]:
+def extract_functions(project_dir: str) -> list[dict[str, str]]:
     """
     Extract top-level functions and class methods from all Python files
     in a project directory.
@@ -317,14 +363,15 @@ def extract_functions(project_dir: str) -> dict[str, str]:
 
     Returns
     -------
-    dict[str, str]
-        A mapping of fully qualified function/method names to their
-        complete source code (including docstrings).
+    list[dict[str, str]]
+        A list of dicts, each containing:
 
-        Keys are relative to the project root, e.g.:
-        - ``core.engine.run``
-        - ``utils.helpers.DataCleaner.clean``
-        - ``main.entrypoint``
+        - ``function`` (str): Fully qualified name relative to the
+          project root (e.g., ``core.engine.Engine.run``).
+        - ``docstring`` (str): The function's docstring, or an empty
+          string if none is present.
+        - ``code`` (str): The complete source code of the function
+          (including the docstring as it appears in source).
 
     Raises
     ------
@@ -335,10 +382,12 @@ def extract_functions(project_dir: str) -> dict[str, str]:
 
     Example
     -------
-    >>> result = extract_functions("my_project/")
-    >>> for name, code in result.items():
-    ...     print(f"--- {name} ---")
-    ...     print(code)
+    >>> results = extract_functions("my_project/")
+    >>> for record in results:
+    ...     print(record["function"])
+    ...     print(record["docstring"][:50])
+    ...     print(record["code"][:80])
+    ...     print()
     """
     root = Path(project_dir).resolve()
 
@@ -349,10 +398,10 @@ def extract_functions(project_dir: str) -> dict[str, str]:
 
     py_files = _collect_python_files(root)
 
-    results: dict[str, str] = {}
+    results: list[dict[str, str]] = []
     for py_file in py_files:
         file_results = _extract_from_file(py_file, root)
-        results.update(file_results)
+        results.extend(file_results)
 
     return results
 
@@ -369,4 +418,5 @@ if __name__ == "__main__":
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    print(json.dumps(extracted, indent=2))
+    df: pd.DataFrame = pd.DataFrame(data=extracted)
+    print(df)
