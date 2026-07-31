@@ -8,36 +8,48 @@ distributable OpenCode artifacts (agents, skills) plus an MCP server into
 `build/`. The actual "product" is prose/config, not code:
 
 - `agents/paraview-prompt-formatter.md` — OpenCode subagent (frontmatter + prompt).
-- `skills/paraview/` — OpenCode skill: `SKILL.md` + `references/*.md`
+- `skills/paraview-coder/` — OpenCode skill: `SKILL.md` + `references/*.md`
   catalog of ParaView pvpython snippets. This is the primary content.
-  The `SKILL.md` frontmatter declares `name: paraview-coder` (logical name
-  differs from directory name).
-- `mcp/pvpython-renderer/` — MCP server source. Built separately as a `uv`
-  project. See `mcp/pvpython-renderer/AGENTS.md` for details.
+  The `SKILL.md` frontmatter declares `name: paraview-coder`, matching the
+  directory name (older docs/READMEs still say `skills/paraview/` — that
+  path no longer exists, ignore it).
+- `mcp/pvpython-renderer/` — MCP server source, the one wired up in
+  `opencode.json.template`. Built separately as a `uv` project. See
+  `mcp/pvpython-renderer/AGENTS.md` for details.
+- `mcp/pvpython-rag/` — untracked (gitignored via untracked status, not yet
+  committed), in-progress sibling project (AST-based function extraction for
+  RAG over the pvpython snippet catalog). `main.py` is a stub. Not wired
+  into `make build` or `opencode.json.template`. Don't assume it's finished
+  or load-bearing.
 - `benchmark/` — SciVisAgentBench tasks, downloaded on demand (gitignored).
 
 ## Setup
 
 ```
-# Submodule init + pre-commit install only (does NOT create the conda env)
-make create-dev
+make create-dev   # currently a no-op: target is declared .PHONY but has no
+                   # recipe in the root Makefile. Previously ran submodule
+                   # init + pre-commit install; the submodule was deleted
+                   # and the pre-commit step was never restored. Run
+                   # `pre-commit install` manually instead.
 
-# Create the conda env separately
 conda env create -f environment.yml   # env: paraview-agent-harness, python 3.14, paraview 6.1.1
 conda activate paraview-agent-harness
 ```
 
-Two separate conda environments exist in this repo:
+Three separate conda environments exist in this repo (one per
+`mcp/*/environment.yaml`, plus the root):
 
-|          | Root harness             | MCP server                               |
-| -------- | ------------------------ | ---------------------------------------- |
-| Config   | `environment.yml`        | `mcp/pvpython-renderer/environment.yaml` |
-| Env name | `paraview-agent-harness` | `paraview_mcp`                           |
-| Python   | 3.14                     | 3.10                                     |
-| ParaView | 6.1.1                    | 5.13.3                                   |
-| Purpose  | Lint/build               | Runtime for MCP server                   |
+|          | Root harness             | pvpython-renderer                        | pvpython-rag                        |
+| -------- | ------------------------ | ---------------------------------------- | ----------------------------------- |
+| Config   | `environment.yml`        | `mcp/pvpython-renderer/environment.yaml` | `mcp/pvpython-rag/environment.yaml` |
+| Env name | `paraview-agent-harness` | `pvpython_renderer`                      | `pvpython_rag`                      |
+| Python   | 3.14                     | 3.10                                     | 3.10                                |
+| ParaView | 6.1.1                    | 5.13.3                                   | 5.13.3                              |
+| Purpose  | Lint/build               | Runtime for MCP server                   | RAG extraction (WIP)                |
 
-Activate the right env for the right task.
+Activate the right env for the right task. Each `mcp/*` subproject has its
+own `make create-dev` (conda env create/update + `uv sync --group dev` +
+`uv pip install -e .`) — that one _does_ work, unlike the root target.
 
 ## Build
 
@@ -75,7 +87,7 @@ Style (`.editorconfig`): 4-space indent, LF, max line 80, **no final newline**
 ## Conventions specific to this repo
 
 - Editing agent/skill behavior means editing markdown prompts, not code. Keep
-  the `paraview-coder` gotchas in `skills/paraview/SKILL.md` intact —
+  the `paraview-coder` gotchas in `skills/paraview-coder/SKILL.md` intact —
   they encode hard-won pvpython failure modes (unframed camera → blank image,
   leftover `'var0'` array, volume transfer-function quartets, `InsideOut`
   unreliable, Threshold `LowerThreshold`/`UpperThreshold` on 5.10+).
