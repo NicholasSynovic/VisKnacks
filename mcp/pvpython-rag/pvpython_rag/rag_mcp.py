@@ -1,9 +1,11 @@
 """
-pvpython-rag MCP server — barebones single-tool scaffold.
+pvpython-rag MCP server — code-retrieval endpoint.
 
-Exposes one tool, ``query``, over streamable-http. Currently a stub that
-ignores its input and returns "Hello World". Intended to grow into a
-RAG-retrieval endpoint over the FAISS indexes built by
+Exposes one tool, ``query``, over streamable-http. The tool embeds an
+incoming natural-language query with the same ``nomic-ai/CodeRankEmbed``
+model used to build the indexes, searches the loaded FAISS vector database
+for a specific ParaView version, and returns the top matching
+``{function, docstring, code, score}`` records built by
 ``pvpython_rag.main``.
 """
 
@@ -14,8 +16,25 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
 
 from fastmcp import FastMCP
+
+# Embedding configuration. These MUST match the values used to build the
+# indexes in ``pvpython_rag.main`` (same model, sequence length, and
+# normalization), or query embeddings will not be comparable to the stored
+# document embeddings.
+EMBEDDING_MODEL_NAME = "nomic-ai/CodeRankEmbed"
+MODEL_MAX_SEQ_LENGTH = 2048
+
+# CodeRankEmbed is asymmetric: *queries* must carry this task-instruction
+# prefix, while the indexed *documents* (raw code) must not. Omitting it
+# silently degrades retrieval quality.
+QUERY_PREFIX = "Represent this query for searching relevant code: "
+
+# Default number of results returned by the ``query`` tool.
+DEFAULT_TOP_K = 5
 
 mcp = FastMCP("pvpython-rag")
 
@@ -44,12 +63,70 @@ class VectorDB:
 
 # Populated eagerly at startup by ``run`` and reused by the ``query`` tool.
 _VECTOR_DB: VectorDB | None = None
+_MODEL: SentenceTransformer | None = None
 
 
 @mcp.tool()
-def query(query: str) -> str:
-    """Return a fixed greeting, ignoring the input (stub)."""
-    return "Hello World"
+def query(query: str, k: int = DEFAULT_TOP_K) -> list[dict]:
+    """
+    Search the loaded vector database for code relevant to ``query``.
+
+    The query is embedded with the same ``nomic-ai/CodeRankEmbed`` model
+    used to build the index (prefixed with the required query
+    task-instruction and L2-normalized), then matched against the FAISS
+    index via cosine similarity.
+
+    Parameters
+    ----------
+    query : str
+        A natural-language description of the desired functionality. The
+        required CodeRankEmbed query prefix is added internally; callers
+        pass plain text.
+    k : int, optional
+        Maximum number of results to return, ordered by descending
+        similarity. Defaults to :data:`DEFAULT_TOP_K`. Values ``<= 0``
+        return an empty list; larger values are clamped to the index size.
+
+    Returns
+    -------
+    list[dict]
+        Up to ``k`` records, each a ``{function, docstring, code, score}``
+        dict where ``score`` is the cosine similarity (higher is better).
+
+    Raises
+    ------
+    RuntimeError
+        If the server was not initialized (vector database or embedding
+        model not loaded).
+    """
+    if _VECTOR_DB is None or _MODEL is None:
+        raise RuntimeError(
+            "server not initialized: vector database and embedding model "
+            "must be loaded before querying"
+        )
+
+    if k <= 0:
+        return []
+
+    k = min(k, _VECTOR_DB.index.ntotal)
+
+    query_embedding = _MODEL.encode(
+        [QUERY_PREFIX + query],
+        normalize_embeddings=True,
+        convert_to_numpy=True,
+    ).astype(np.float32)
+
+    scores, indices = _VECTOR_DB.index.search(query_embedding, k)
+
+    results: list[dict] = []
+    for idx, score in zip(indices[0], scores[0]):
+        # FAISS pads with -1 when fewer than k results are available.
+        if idx == -1:
+            continue
+        record = _VECTOR_DB.metadata[idx]
+        results.append({**record, "score": float(score)})
+
+    return results
 
 
 def _normalize_version(pv_version: str) -> str:
@@ -123,6 +200,33 @@ def load_vector_db(directory: Path, pv_version: str) -> VectorDB:
     return VectorDB(version=version, index=index, metadata=metadata)
 
 
+def load_model() -> SentenceTransformer:
+    """
+    Load the query-embedding model, matching the index builder.
+
+    Uses the same model, device, and sequence length as
+    :func:`pvpython_rag.main.embed_records`, so query embeddings are
+    directly comparable to the stored document embeddings.
+
+    Returns
+    -------
+    SentenceTransformer
+        The loaded ``nomic-ai/CodeRankEmbed`` model on ``cuda``.
+
+    Notes
+    -----
+    Loading requires a CUDA-capable GPU (no CPU fallback, matching the
+    builder) and, on first use, network access to download the model.
+    """
+    model = SentenceTransformer(
+        EMBEDDING_MODEL_NAME,
+        trust_remote_code=True,
+        device="cuda",
+    )
+    model.max_seq_length = MODEL_MAX_SEQ_LENGTH
+    return model
+
+
 def cli(args: list[str] | None = None) -> argparse.Namespace:
     """
     Parse command-line arguments for the pvpython-rag MCP server.
@@ -190,12 +294,12 @@ def run(
     directory: Path | None = None,
 ) -> None:
     """
-    Load the vector database for ``pv_version`` and run the MCP server.
+    Load the vector database and embedding model, then run the server.
 
-    The FAISS index and metadata are loaded eagerly from ``directory``
-    before the server starts, so a missing or inconsistent database fails
-    fast. The loaded database is held in memory for the ``query`` tool to
-    use (retrieval itself is not yet wired up).
+    The FAISS index, metadata, and query-embedding model are loaded
+    eagerly from ``directory`` before the server starts, so a missing or
+    inconsistent database or an unavailable model fails fast. Both are
+    held in memory for the ``query`` tool to reuse on every call.
 
     Raises
     ------
@@ -204,13 +308,20 @@ def run(
         are missing.
     ValueError
         If the loaded index and metadata are inconsistent.
+    RuntimeError
+        If the embedding model cannot be loaded (e.g. no CUDA device).
     """
-    global _VECTOR_DB
+    global _VECTOR_DB, _MODEL
     _VECTOR_DB = load_vector_db(directory, pv_version)
     print(
         f"Loaded vector database {_VECTOR_DB.version} "
         f"({len(_VECTOR_DB.metadata)} records, "
         f"dim {_VECTOR_DB.index.d}) from {directory}",
+        file=sys.stderr,
+    )
+    _MODEL = load_model()
+    print(
+        f"Loaded embedding model {EMBEDDING_MODEL_NAME} on cuda",
         file=sys.stderr,
     )
     mcp.run(transport="http", host=host, port=port)
@@ -225,7 +336,7 @@ def main() -> None:
             pv_version=args.pv_version,
             directory=args.directory,
         )
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
