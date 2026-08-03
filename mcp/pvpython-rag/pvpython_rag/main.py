@@ -48,6 +48,10 @@ def cli(args: list[str] | None = None) -> argparse.Namespace:
           to extract functions from.
         - ``output_dir`` (str): Path to the directory where the FAISS
           index and metadata sidecar will be written.
+        - ``tag`` (str | None): Optional identifier (e.g. a git tag)
+          used to suffix the output filenames, producing
+          ``index_<tag>.faiss`` and ``metadata_<tag>.json`` instead of
+          the default :data:`INDEX_FILENAME`/:data:`METADATA_FILENAME`.
 
     Example
     -------
@@ -56,6 +60,8 @@ def cli(args: list[str] | None = None) -> argparse.Namespace:
     'my_project/'
     >>> ns.output_dir
     'out/'
+    >>> ns.tag is None
+    True
     """
     parser = argparse.ArgumentParser(
         prog="build_index",
@@ -78,6 +84,17 @@ def cli(args: list[str] | None = None) -> argparse.Namespace:
         required=True,
         type=str,
         help="Path to the directory to write the FAISS index and metadata sidecar to.",
+    )
+
+    parser.add_argument(
+        "--tag",
+        default=None,
+        type=str,
+        help=(
+            "Optional identifier (e.g. a git tag) to suffix the output "
+            "filenames with, producing index_<tag>.faiss and "
+            "metadata_<tag>.json instead of the default filenames."
+        ),
     )
 
     return parser.parse_args(args)
@@ -152,7 +169,7 @@ def build_faiss_index(embeddings: np.ndarray) -> faiss.IndexFlatIP:
     return index
 
 
-def build_index(input_dir: str, output_dir: str) -> None:
+def build_index(input_dir: str, output_dir: str, tag: str | None = None) -> None:
     """
     Extract, embed, index, and persist ParaView function records.
 
@@ -162,9 +179,13 @@ def build_index(input_dir: str, output_dir: str) -> None:
         Path to the Python project root directory to extract functions
         from.
     output_dir : str
-        Path to the directory to write the FAISS index
-        (:data:`INDEX_FILENAME`) and metadata sidecar
-        (:data:`METADATA_FILENAME`) to. Created if it does not exist.
+        Path to the directory to write the FAISS index and metadata
+        sidecar to. Created if it does not exist.
+    tag : str | None, optional
+        Optional identifier (e.g. a git tag) to suffix the output
+        filenames with. If provided, files are written as
+        ``index_<tag>.faiss`` and ``metadata_<tag>.json``; otherwise
+        :data:`INDEX_FILENAME` and :data:`METADATA_FILENAME` are used.
 
     Raises
     ------
@@ -186,9 +207,12 @@ def build_index(input_dir: str, output_dir: str) -> None:
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    faiss.write_index(index, str(output_path / INDEX_FILENAME))
+    index_filename = f"index_{tag}.faiss" if tag else INDEX_FILENAME
+    metadata_filename = f"metadata_{tag}.json" if tag else METADATA_FILENAME
 
-    with (output_path / METADATA_FILENAME).open("w", encoding="utf-8") as f:
+    faiss.write_index(index, str(output_path / index_filename))
+
+    with (output_path / metadata_filename).open("w", encoding="utf-8") as f:
         json.dump(records, f, indent=4)
 
 
@@ -199,7 +223,7 @@ if __name__ == "__main__":
     namespace = cli()
 
     try:
-        build_index(namespace.input_dir, namespace.output_dir)
+        build_index(namespace.input_dir, namespace.output_dir, namespace.tag)
     except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)

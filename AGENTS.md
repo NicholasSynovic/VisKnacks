@@ -16,11 +16,14 @@ distributable OpenCode artifacts (agents, skills) plus an MCP server into
 - `mcp/pvpython-renderer/` — MCP server source, the one wired up in
   `opencode.json.template`. Built separately as a `uv` project. See
   `mcp/pvpython-renderer/AGENTS.md` for details.
-- `mcp/pvpython-rag/` — untracked (gitignored via untracked status, not yet
-  committed), in-progress sibling project (AST-based function extraction for
-  RAG over the pvpython snippet catalog). `main.py` is a stub. Not wired
-  into `make build` or `opencode.json.template`. Don't assume it's finished
-  or load-bearing.
+- `mcp/pvpython-rag/` — sibling project (now tracked and working, despite
+  the name it is not yet an MCP server): AST-based function extraction
+  (`extract_functions.py`) + FAISS index builder (`pvpython_rag/main.py`,
+  entry `python -m pvpython_rag.main`) that embeds ParaView Python API
+  source with `nomic-ai/CodeRankEmbed` for RAG retrieval. Not wired into
+  the root `make build` or `opencode.json.template` — it produces vector DBs,
+  not a runtime server. `README.md` here is empty; use the module docstrings.
+  See "pvpython-rag quick reference" below.
 - `benchmark/` — SciVisAgentBench tasks, downloaded on demand (gitignored).
 
 ## Setup
@@ -117,6 +120,31 @@ Uses **reverse-connection** to pvserver (not forward-connect). Running
 
 Logs: `~/paraview_logs/pvpython_renderer_external.log` and per-call
 `~/paraview_logs/call_<timestamp>_runner.log`.
+
+## pvpython-rag quick reference
+
+Builds FAISS indexes over ParaView's Python API for RAG retrieval. Run all
+commands from `mcp/pvpython-rag/` in the `pvpython_rag` conda env.
+
+```
+make clone-paraview          # git clones Kitware/ParaView into data/paraview-code
+make create-vector-databases # runs scripts/build_all_indexes.sh
+```
+
+- `scripts/build_all_indexes.sh` iterates every eligible git tag of the
+  vendored ParaView clone, checks each out into an isolated `git worktree`,
+  and builds `index_<tag>.faiss` + `metadata_<tag>.json` in `data/vector-db/`.
+  It skips tags lacking `Wrapping/Python/paraview`, RC/dev/final suffixes,
+  and already-built tags. `FORCE=1` rebuilds existing tags. Failures per tag
+  are logged and skipped; the script exits non-zero if any tag failed.
+- Embedding uses `device="cuda"` (see `pvpython_rag/main.py`) — a GPU is
+  required; there is no CPU fallback. `batch_size=1` and
+  `max_seq_length=2048` are deliberate OOM mitigations; the `environment.yaml`
+  carries GPU/CUDA deps.
+- `make freeze` regenerates `environment.yaml` from the live env, then prints
+  a reminder to manually verify channels include `nodefaults` and the pip
+  section excludes `pvpython_rag` itself.
+- `data/` (the ParaView clone and vector DBs) is gitignored.
 
 ## Benchmark
 
