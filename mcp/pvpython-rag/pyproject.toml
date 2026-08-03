@@ -4,7 +4,16 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
-dependencies = []
+dependencies = [
+    "fastmcp==3.4.5",
+]
+
+[project.scripts]
+pvpython-rag-mcp = "pvpython_rag.rag_mcp:run"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["pvpython_rag*"]
