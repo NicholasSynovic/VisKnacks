@@ -16,14 +16,15 @@ distributable OpenCode artifacts (agents, skills) plus an MCP server into
 - `mcp/pvpython-renderer/` — MCP server source, the one wired up in
   `opencode.json.template`. Built separately as a `uv` project. See
   `mcp/pvpython-renderer/AGENTS.md` for details.
-- `mcp/pvpython-rag/` — sibling project (now tracked and working, despite
-  the name it is not yet an MCP server): AST-based function extraction
+- `mcp/pvpython-rag/` — sibling project: AST-based function extraction
   (`extract_functions.py`) + FAISS index builder (`pvpython_rag/main.py`,
   entry `python -m pvpython_rag.main`) that embeds ParaView Python API
-  source with `nomic-ai/CodeRankEmbed` for RAG retrieval. Not wired into
-  the root `make build` or `opencode.json.template` — it produces vector DBs,
-  not a runtime server. `README.md` here is empty; use the module docstrings.
-  See "pvpython-rag quick reference" below.
+  source with `nomic-ai/CodeRankEmbed` for RAG retrieval, plus a FastMCP
+  server (`pvpython_rag/rag_mcp.py`) exposing a `query` tool over
+  streamable-http. It is NOT wired into the root `make build` or
+  `opencode.json.template` (and defaults to port 8080, colliding with the
+  renderer). `README.md` here is empty; use the module docstrings. See
+  "pvpython-rag quick reference" below.
 - `benchmark/` — SciVisAgentBench tasks, downloaded on demand (gitignored).
 
 ## Setup
@@ -154,3 +155,15 @@ make download-benchmark   # requires hf (huggingface_hub) CLI on PATH
 
 `benchmark/` scripts are tracked; data dirs (`benchmark/data/`,
 `benchmark/scivisagentbench/`) are gitignored and downloaded on demand.
+
+## Known issues / doc drift
+
+`TODO.md` is a detailed, severity-ranked review of the MCP servers, skill,
+and agent — read it before "fixing" apparent bugs, they may already be
+tracked. Key drift it records: `mcp/pvpython-rag` under-declares its deps
+(runtime imports `faiss`/`numpy`/`sentence_transformers`, `pyproject.toml`
+lists only `fastmcp`) and its build writes to `data/vector-db/` while the
+server loads `data/paraview-vector-db/`; the renderer's own `README.md` and
+`mcp/pvpython-renderer/AGENTS.md` still use the stale `paraview-mcp` script
+name and `paraview_mcp` env name (the real env is `pvpython_renderer`);
+`skills/README.md` points at the nonexistent `skills/paraview/references/`.
