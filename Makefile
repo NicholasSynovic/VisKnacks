@@ -1,20 +1,7 @@
-.PHONY: build create-dev
-build:
-	# Write OpenCode config
-	mkdir -p build/.opencode
-	cp opencode.json.template build/.opencode/opencode.json
+SKILL_SYSTEMS := agents claude kilo opencode
+SKILL_TARGETS := $(addprefix package-,$(addsuffix -skills,$(SKILL_SYSTEMS)))
 
-	# Write agents to OpenCode
-	mkdir -p build/.opencode/agents
-	find agents/ -type f -not -name "README.md" -exec cp {} build/.opencode/agents/ \;
-
-	# Write skills to OpenCode
-	mkdir -p build/.opencode/skills
-	find skills/ -maxdepth 1 -mindepth 1 -type d -exec cp -r {} build/.opencode/skills/ \;
-
-	mkdir -p build/dist
-	$(MAKE) -C mcp/pvpython-renderer build
-	cp -r mcp/pvpython-renderer/dist build
+build: $(SKILL_TARGETS)
 
 download-benchmark:
 	mkdir -p benchmark/scivisagentbench
@@ -22,5 +9,7 @@ download-benchmark:
 		--repo-type dataset \
 		--local-dir benchmark/scivisagentbench
 
-test:
-	echo "test"
+$(SKILL_TARGETS): package-%-skills:
+	rm -rf build/.$*/skills
+	mkdir -p build/.$*/skills
+	find skills/ -maxdepth 1 -mindepth 1 -type d -exec cp -r {} build/.$*/skills/ \;

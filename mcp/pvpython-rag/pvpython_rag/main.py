@@ -1,5 +1,5 @@
 """
-build_index.py
+main.py
 
 Builds a FAISS similarity index over ParaView Python API functions and
 methods extracted from a project directory. Each function's source code

@@ -6,7 +6,7 @@ from an entire Python project directory into a list of dicts, each
 containing the fully qualified name, docstring, and source code.
 
 Uses the `ast` module for static analysis.
-Requires Python 3.13+.
+Requires Python 3.10+.
 """
 
 import argparse

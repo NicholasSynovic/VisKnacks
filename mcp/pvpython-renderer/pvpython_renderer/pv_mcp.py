@@ -384,8 +384,32 @@ def execute_code(code: str) -> dict:
     Returns:
         A dict with keys ``returncode`` (int), ``runner_stdout`` (str),
         ``runner_stderr`` (str), ``pvserver_stdout`` (str) and
-        ``pvserver_stderr`` (str). ``returncode`` is ``-1`` on
-        launch/timeout/internal errors.
+        ``pvserver_stderr`` (str).
+
+        ``returncode`` is the runner subprocess's exit code on a completed
+        run (``0`` = the supplied ``code`` ran without raising; non-zero =
+        the user code or ``pvpython`` itself failed — inspect
+        ``runner_stderr`` for the traceback). ``returncode`` is ``-1`` for
+        every *infrastructure* failure where the user code never completed;
+        these are distinguished only by ``runner_stderr``, which carries:
+
+        - ``"pvpython not found on PATH"`` / ``"pvserver not found on PATH"``
+          — the required ParaView binary is missing (conda env not
+          activated).
+        - ``"Error launching pv_runner: ..."`` /
+          ``"Error launching pvserver: ..."`` — the subprocess could not be
+          spawned.
+        - ``"Subprocess timed out after N seconds."`` — the runner exceeded
+          ``SUBPROCESS_TIMEOUT`` (see also ``pvserver_stderr`` for
+          reverse-connection handshake failures).
+        - ``"Error running pv_runner.py: ..."`` — an internal error while
+          awaiting the runner.
+
+        So: distinguish user-code errors (``returncode`` > 0) from
+        infrastructure errors (``returncode == -1``) by the code, then
+        match ``runner_stderr`` against the messages above to classify the
+        infrastructure failure. A future revision may promote these to a
+        dedicated status field.
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
