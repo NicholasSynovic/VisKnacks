@@ -1,10 +1,24 @@
-.PHONY: build clone-paraview create-dev create-vector-databases freeze
+.PHONY: build clone-paraview create-dev create-vector-databases docker-build \
+	docker-run freeze
 
 CONDA_ENV := pvpython_rag
+IMAGE := pvpython-rag:latest
 
 build:
 	rm -rf build
 	conda run -n pvpython_rag uv build
+
+docker-build:
+	docker build -t $(IMAGE) .
+
+# Requires an NVIDIA GPU (rag_mcp.py hardcodes device="cuda") and prebuilt
+# indexes in data/vector-db (run `make create-vector-databases` first).
+# Serves the MCP endpoint at http://localhost:8081/mcp
+docker-run:
+	docker run --rm --gpus all -p 8081:8081 \
+		-v "$(CURDIR)/data/vector-db:/data:ro" \
+		-v hf-cache:/cache/huggingface \
+		$(IMAGE)
 
 create-dev:
 	conda env create --file environment.yaml --name $(CONDA_ENV) || \

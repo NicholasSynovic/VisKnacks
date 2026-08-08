@@ -1,0 +1,41 @@
+# Keep the build context small. Note that `environment.yaml` and `README.md`
+# are deliberately NOT excluded: the former builds the conda env, and
+# pyproject.toml declares `readme = "README.md"`, so setuptools needs it.
+
+# Version control
+.git
+.gitignore
+
+# Build artifacts and caches
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Local environments
+.venv/
+venv/
+.python-version
+
+# The container resolves dependencies via conda + pip, not uv
+uv.lock
+
+# Developer-only tooling (not needed at runtime)
+Makefile
+AGENTS.md
+Dockerfile
+.dockerignore
+
+# This image is serve-only. Index building (scripts/build_all_indexes.sh)
+# needs a GPU and a full ParaView git clone and stays a host-side task.
+scripts/
+
+# Vector databases and the vendored ParaView clone are mounted at runtime,
+# never baked in. data/ is multi-GB.
+data/
+*.faiss
+*.log

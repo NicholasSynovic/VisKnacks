@@ -1,8 +1,19 @@
-.PHONY: build create-dev freeze
+.PHONY: build create-dev docker-build docker-run freeze
+
+IMAGE := pvpython-renderer:latest
 
 build:
 	rm -rf build
 	conda run -n pvpython_renderer uv build
+
+docker-build:
+	docker build -t $(IMAGE) .
+
+# Serves the MCP endpoint at http://localhost:8080/mcp
+docker-run:
+	docker run --rm -p 8080:8080 \
+		-v paraview-logs:/home/pvuser/paraview_logs \
+		$(IMAGE)
 
 create-dev:
 	conda env create --file environment.yaml --name pvpython_renderer || \

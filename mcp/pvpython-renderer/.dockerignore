@@ -1,0 +1,39 @@
+# Keep the build context small and the image reproducible. Anything the
+# Dockerfile does not explicitly COPY is excluded here as well, so that
+# editing it cannot silently invalidate cache layers.
+
+# Version control
+.git
+.gitignore
+
+# Build artifacts and caches
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Local environments
+.venv/
+venv/
+.python-version
+
+# The container resolves dependencies via conda + pip, not uv
+uv.lock
+
+# Developer-only tooling and docs (not needed at runtime)
+Makefile
+AGENTS.md
+Dockerfile
+.dockerignore
+
+# Host conda env pin; the container uses environment.container.yaml
+environment.yaml
+
+# Data and logs
+data/
+paraview_logs/
+*.log

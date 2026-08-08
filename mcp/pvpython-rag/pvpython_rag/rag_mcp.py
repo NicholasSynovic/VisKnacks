@@ -36,6 +36,15 @@ QUERY_PREFIX = "Represent this query for searching relevant code: "
 # Default number of results returned by the ``query`` tool.
 DEFAULT_TOP_K = 5
 
+# Default bind address for the MCP transport. ``localhost`` keeps the server
+# private by default; containers must pass ``--host 0.0.0.0`` to be reachable
+# from outside the container's network namespace.
+DEFAULT_HOST = "localhost"
+
+# Default bind port. Deliberately *not* 8080: the sibling pvpython-renderer
+# MCP server defaults to 8080, and the two are expected to run side by side.
+DEFAULT_PORT = 8081
+
 mcp = FastMCP("pvpython-rag")
 
 
@@ -242,6 +251,7 @@ def cli(args: list[str] | None = None) -> argparse.Namespace:
     argparse.Namespace
         Parsed arguments with the following attributes:
 
+        - ``host`` (str): Hostname/interface the MCP server binds to.
         - ``port`` (int): HTTP port the MCP server binds to.
         - ``pv_version`` (str): ParaView version whose index/metadata to
           serve (default ``"5.13.3"``).
@@ -251,8 +261,10 @@ def cli(args: list[str] | None = None) -> argparse.Namespace:
     Example
     -------
     >>> ns = cli(["--directory", "."])
+    >>> ns.host
+    'localhost'
     >>> ns.port
-    8080
+    8081
     >>> ns.pv_version
     '5.13.3'
     >>> ns.directory == Path(".").absolute()
@@ -266,9 +278,19 @@ def cli(args: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--host",
+        type=str,
+        default=DEFAULT_HOST,
+        help=(
+            "Hostname/interface the MCP server binds to (default: "
+            "%(default)s). Use 0.0.0.0 to accept connections from outside "
+            "the host, e.g. when running in a container."
+        ),
+    )
+    parser.add_argument(
         "--port",
         type=int,
-        default=8080,
+        default=DEFAULT_PORT,
         help="HTTP port the MCP server binds to (default: %(default)s).",
     )
     parser.add_argument(
@@ -288,8 +310,8 @@ def cli(args: list[str] | None = None) -> argparse.Namespace:
 
 
 def run(
-    host: str = "localhost",
-    port: int = 8080,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
     pv_version: str = "5.13.3",
     directory: Path | None = None,
 ) -> None:
@@ -300,6 +322,20 @@ def run(
     eagerly from ``directory`` before the server starts, so a missing or
     inconsistent database or an unavailable model fails fast. Both are
     held in memory for the ``query`` tool to reuse on every call.
+
+    Parameters
+    ----------
+    host : str, optional
+        Interface to bind the MCP transport to. Defaults to
+        :data:`DEFAULT_HOST` (``localhost``), which is unreachable from
+        outside a container; pass ``0.0.0.0`` when containerized.
+    port : int, optional
+        Port to bind the MCP transport to. Defaults to
+        :data:`DEFAULT_PORT`.
+    pv_version : str, optional
+        ParaView version whose index/metadata pair to load.
+    directory : pathlib.Path | None, optional
+        Directory containing the prebuilt index/metadata files.
 
     Raises
     ------
@@ -332,6 +368,7 @@ def main() -> None:
     args = cli()
     try:
         run(
+            host=args.host,
             port=args.port,
             pv_version=args.pv_version,
             directory=args.directory,
