@@ -221,3 +221,4 @@ benchmark/scivisagentbench
 .opencode/
 *.zip
 benchmark/data/
+benchmark/results/
