@@ -5,6 +5,7 @@
     "experimental": {
         "openTelemetry": false
     },
+    "lsp": true,
     "mcp": {
         "pvpython-renderer-mcp": {
             "type": "remote",

@@ -12,6 +12,7 @@ max_line_length = 80
 [.py]
 
 [.md]
+indent_size = 2
 
 [.json]
 
