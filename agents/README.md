@@ -2,6 +2,18 @@
 
 > OpenCode subagents that offload focused subtasks from the main skill workflow.
 
+## Table of Contents
+
+- [VisKnacks Agents](#visknacks-agents)
+    - [Table of Contents](#table-of-contents)
+    - [About](#about)
+    - [paraview-prompt-formatter](#paraview-prompt-formatter)
+        - [When it is triggered](#when-it-is-triggered)
+        - [Blocking behavior](#blocking-behavior)
+        - [Output format](#output-format)
+        - [Term mappings](#term-mappings)
+        - [Permissions](#permissions)
+
 ## About
 
 Agents in this directory are OpenCode **subagents** — isolated assistants
