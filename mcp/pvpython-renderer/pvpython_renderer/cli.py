@@ -31,7 +31,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
-        help="Show the paraview-mcp version and exit",
+        help="Show the pvpython-renderer-mcp version and exit",
     )
 
     mcp_group = parser.add_argument_group("MCP Server Options")

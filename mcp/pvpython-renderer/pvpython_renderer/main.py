@@ -1,7 +1,7 @@
 """
 ParaView MCP server entrypoint.
 
-This is the controller invoked by the ``paraview-mcp`` console script
+This is the controller invoked by the ``pvpython-renderer-mcp`` console script
 (``pvpython_renderer.main:main``). It parses the CLI arguments, configures
 logging, then hands off to the MCP server defined in
 ``pvpython_renderer.pv_mcp``.
@@ -28,7 +28,7 @@ def main() -> None:
             mcp_port=args.port,
         )
     except Exception as e:  # pragma: no cover - top-level safety net
-        logger.error(f"Fatal error starting ParaView MCP server: {str(e)}")
+        logger.error(f"Fatal error starting ParaView MCP server: {e!s}")
         raise
 
 
