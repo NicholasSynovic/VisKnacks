@@ -7,7 +7,7 @@
 #
 # Environment:
 #   FORCE=1       re-run tasks whose output image already exists
-#   NUM_TASKS=n   number of tasks to run (0 or "all" runs every task)
+#   NUM_TASKS=n   number of tasks to run (default: all; 0 also runs every task)
 
 set -uo pipefail
 
@@ -16,13 +16,16 @@ DATA_DIR="$SCRIPT_DIR/data"
 RESULTS_DIR="$SCRIPT_DIR/results"
 
 MODELS=(
-    # argo/claudeopus48
-    # argo-shim/claudesonnet46
-    # argo/gemini35flash
-    argo/gpt55
+    argo/claudeopus5
+    argo/claudehaiku45
+    argo/claudesonnet5
+    argo/gemini35flash
+    argo/gpt5sol
+    argo/gpt5terra
+    argo/gpt5luna
 )
 
-NUM_TASKS="${NUM_TASKS:-10}"
+NUM_TASKS="${NUM_TASKS:-all}"
 FORCE="${FORCE:-0}"
 
 if [[ ! -d "$DATA_DIR" ]]; then
@@ -59,6 +62,14 @@ echo
 for model in "${MODELS[@]}"; do
     # Strip the provider prefix: argo-onsite/gpt55 -> gpt55
     model_name="${model##*/}"
+    model_log="$RESULTS_DIR/$model_name/$model_name.log"
+    mkdir -p "$RESULTS_DIR/$model_name"
+
+    # Redirect all stdout+stderr for this model through tee into MODEL.log.
+    # Use exec on a per-model fd rather than a subshell so that the failed/
+    # skipped/run counters remain visible in the outer scope.
+    exec 3>&1 4>&2
+    exec > >(tee "$model_log") 2>&1
 
     for task in "${TASKS[@]}"; do
         run=$((run + 1))
@@ -117,6 +128,16 @@ no other files."
             failed=$((failed + 1))
         fi
     done
+
+    # Restore stdout/stderr before moving to the next model.
+    exec 1>&3 3>&- 2>&4 4>&-
+
+    # Package this model's results and move to the Desktop.
+    tarball="$SCRIPT_DIR/${model_name}.tar"
+    tar -cf "$tarball" -C "$RESULTS_DIR" "$model_name"
+    mv "$tarball" "$HOME/Desktop/MODEL.tar"
+    echo "Tarball moved to $HOME/Desktop/MODEL.tar"
+    rm -rf "$RESULTS_DIR"
 done
 
 echo

@@ -224,13 +224,12 @@ def load_model() -> SentenceTransformer:
 
     Notes
     -----
-    Loading requires a CUDA-capable GPU (no CPU fallback, matching the
-    builder) and, on first use, network access to download the model.
+    First use, network access to download the model.
     """
     model = SentenceTransformer(
         EMBEDDING_MODEL_NAME,
         trust_remote_code=True,
-        device="cuda",
+        device="cpu",
     )
     model.max_seq_length = MODEL_MAX_SEQ_LENGTH
     return model
