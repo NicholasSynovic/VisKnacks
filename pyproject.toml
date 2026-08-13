@@ -11,13 +11,24 @@ authors = [
 ]
 keywords = ["paraview", "mcp", "visualization", "llm", "scientific-visualization"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Private :: Do Not Upload",
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: GPU :: NVIDIA CUDA",
+    "Framework :: FastAPI",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: BSD License",
-    "Programming Language :: Python :: 3",
+    "Natural Language :: English",
+    "Operating System :: Unix",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Graphics :: 3D Rendering",
     "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Human Machine Interfaces",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Visualization"
 ]
 
 [project.urls]
@@ -29,8 +40,8 @@ Issues = "https://github.com/NicholasSynovic/VisKnacks/issues"
 pvpython-renderer-mcp = "pvpython_renderer.main:main"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
 
 [tool.ruff]
 line-length = 80

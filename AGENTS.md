@@ -2,168 +2,167 @@
 
 ## What this repo is
 
-Packaging/harness for **SciVisAgent** — OpenCode-compatible ParaView
-visualization tooling. This is NOT a runnable Python app. It assembles
-distributable OpenCode artifacts (agents, skills) plus an MCP server into
-`build/`. The actual "product" is prose/config, not code:
+VisKnacks packages ParaView visualization tooling as **pluggable agent-harness
+artifacts**, not as a runnable application. The deliverables are mostly
+markdown prompts plus two MCP servers:
 
-- `agents/paraview-prompt-formatter.md` — OpenCode subagent (frontmatter + prompt).
-- `skills/paraview-coder/` — OpenCode skill: `SKILL.md` + `references/*.md`
-  catalog of ParaView pvpython snippets. This is the primary content.
-  The `SKILL.md` frontmatter declares `name: paraview-coder`, matching the
-  directory name (older docs/READMEs still say `skills/paraview/` — that
-  path no longer exists, ignore it).
-- `mcp/pvpython-renderer/` — MCP server source, the one wired up in
-  `opencode.json.template`. Built separately as a `uv` project. See
-  `mcp/pvpython-renderer/AGENTS.md` for details.
-- `mcp/pvpython-rag/` — sibling project: AST-based function extraction
-  (`extract_functions.py`) + FAISS index builder (`pvpython_rag/main.py`,
-  entry `python -m pvpython_rag.main`) that embeds ParaView Python API
-  source with `nomic-ai/CodeRankEmbed` for RAG retrieval, plus a FastMCP
-  server (`pvpython_rag/rag_mcp.py`) exposing a `query` tool over
-  streamable-http. It is NOT wired into the root `make build` or
-  `opencode.json.template` (and defaults to port 8080, colliding with the
-  renderer). `README.md` here is empty; use the module docstrings. See
-  "pvpython-rag quick reference" below.
-- `benchmark/` — SciVisAgentBench tasks, downloaded on demand (gitignored).
+- `agents/paraview-prompt-formatter.md` — OpenCode subagent (frontmatter +
+  prompt). All tools denied except `question`, by design. Do not grant it more.
+- `skills/paraview-coder/` — the primary content. `SKILL.md` + six
+  `references/*.md` snippet catalogs. The "Known pitfalls" section of `SKILL.md`
+  encodes hard-won pvpython failure modes (unframed camera → blank image,
+  leftover `'var0'` array name, volume transfer-function quartets,
+  `InsideOut` unreliable, `LowerThreshold`/`UpperThreshold` on 5.10+). Do not
+  trim it for brevity.
+- `mcp/pvpython-renderer/` — FastMCP server, one tool `execute_code`. Its
+  `README.md` is accurate and detailed; read it before touching the server.
+- `mcp/pvpython-rag/` — FastMCP server, one tool `query`, over FAISS indexes of
+  the ParaView Python API. WIP. `README.md` is empty; use module docstrings.
+- `build-scripts/` — assembles the distributable into `build/`.
+- `benchmark/` — SciVisAgentBench harness. Scripts tracked; `benchmark/data/`,
+  `benchmark/results/`, and `benchmark/.opencode/` are gitignored.
 
-## Setup
+Editing agent/skill behavior means editing markdown, not Python.
 
-```
-make create-dev   # currently a no-op: target is declared .PHONY but has no
-                   # recipe in the root Makefile. Previously ran submodule
-                   # init + pre-commit install; the submodule was deleted
-                   # and the pre-commit step was never restored. Run
-                   # `pre-commit install` manually instead.
+## Environment
 
-conda env create -f environment.yml   # env: paraview-agent-harness, python 3.14, paraview 6.1.1
-conda activate paraview-agent-harness
+**One conda env for everything**, defined by the root `environment.yaml`
+(name `VisKnacks`, python 3.10.20, paraview 5.13.3, faiss 1.14.1, torch,
+sentence-transformers).
+
+```bash
+make create-dev          # conda env create --file environment.yaml --name VisKnacks
+conda activate VisKnacks
+pre-commit install       # not done by create-dev
 ```
 
-Three separate conda environments exist in this repo (one per
-`mcp/*/environment.yaml`, plus the root):
+`paraview` is conda-only and cannot be pip-installed; it is intentionally
+absent from every `pyproject.toml`.
 
-|          | Root harness             | pvpython-renderer                        | pvpython-rag                        |
-| -------- | ------------------------ | ---------------------------------------- | ----------------------------------- |
-| Config   | `environment.yml`        | `mcp/pvpython-renderer/environment.yaml` | `mcp/pvpython-rag/environment.yaml` |
-| Env name | `paraview-agent-harness` | `pvpython_renderer`                      | `pvpython_rag`                      |
-| Python   | 3.14                     | 3.10                                     | 3.10                                |
-| ParaView | 6.1.1                    | 5.13.3                                   | 5.13.3                              |
-| Purpose  | Lint/build               | Runtime for MCP server                   | RAG extraction (WIP)                |
+Use `conda activate` (or the env's absolute interpreter). `conda run -n
+VisKnacks python ...` resolves to base's python3.13 site-packages on this
+machine and fails on `import fastmcp`.
 
-Activate the right env for the right task. Each `mcp/*` subproject has its
-own `make create-dev` (conda env create/update + `uv sync --group dev` +
-`uv pip install -e .`) — that one _does_ work, unlike the root target.
+## Stale docs — do not follow
+
+Commit `a3ac0ba` consolidated the per-subproject envs into the root one and
+deleted supporting files. The following referenced commands/paths **no longer
+exist**; ignore them when the docs mention them:
+
+- `mcp/pvpython-renderer/README.md`: `make create-dev`, `make build`,
+  `uv build` from that directory, and the `pvpython_renderer` conda env. There
+  is no `mcp/pvpython-renderer/Makefile`.
+- `mcp/pvpython-rag/`: no `Makefile`, no `pyproject.toml`, no
+  `environment.yaml`. `make clone-paraview` (referenced by
+  `scripts/build_all_indexes.sh`) and `make download-benchmark` (referenced by
+  `benchmark/benchmark.bash`) do not exist — clone/download manually.
+- `mcp/pvpython-rag/pvpython_rag.egg-info/` is stale build residue.
+- Any mention of the `paraview-mcp` script name: the real console script is
+  `pvpython-renderer-mcp`.
 
 ## Build
 
-```
-make build   # assembles build/.opencode/{agents,skills}, copies opencode.json template
-```
-
-`build/` is gitignored. `make test` is a stub (`echo "test"`) — no test suite.
-
-To build the MCP wheel directly:
-
-```
-# inside mcp/pvpython-renderer/
-make build
+```bash
+make build   # -> build-scripts/opencode.bash
 ```
 
-## Lint / format
+Copies `opencode.json.template`, the subagent, and the skill into
+`build/.opencode/`. `build/` is gitignored.
 
-All quality gates run through **pre-commit** (`.pre-commit-config.yaml`):
+Gotcha: the script uses bare `mkdir` (not `-p`) for the `agents`/`skills`
+subdirs, so re-running over an existing `build/.opencode` prints errors while
+still exiting 0. `rm -rf build/.opencode` first for a clean build.
 
-```
+Root `uv build` is currently **broken**: `pyproject.toml` uses the `uv_build`
+backend, which expects `src/visknacks/__init__.py`; there is no `src/` tree.
+The root package also declares a `pvpython-renderer-mcp` script pointing at
+`pvpython_renderer`, which lives under `mcp/`, not at the root.
+
+## Lint / format / test
+
+There is **no test suite and no CI**. All quality gates run through
+pre-commit only:
+
+```bash
 pre-commit run --all-files
 ```
 
-- Python: `ruff-check --fix` + `ruff-format` (ruff 0.15.21), `bandit`
-  (excludes `tests,build`).
-- All other files: `prettier` — **must be installed on PATH** (`language: system`,
-  not managed by pre-commit). tab-width 4, print-width 80, trailing-comma es5.
-- `no-commit-to-branch` blocks commits to `main`. Work on a branch.
-- JSON is auto-formatted to 4-space indent, `--no-sort-keys`.
+- ruff (`line-length = 80`); `F403`/`F405` are ignored project-wide because
+  `from paraview.simple import *` in `pv_runner.py` is load-bearing. Do not
+  "fix" the star import.
+- bandit (excludes `tests,build`).
+- `prettier` and `skills-ref` hooks are `language: system` — both must already
+  be on `PATH`, pre-commit will not install them. The skill validator runs on
+  any change under `skills/paraview-coder/`, so the `SKILL.md` frontmatter
+  `name:` must keep matching the directory name.
+- `no-commit-to-branch` blocks commits to `main`. Branches are named
+  `issue-<n>`; `dev` is the integration branch.
+- `.editorconfig` says `insert_final_newline = false`, but pre-commit's
+  `end-of-file-fixer` adds one. pre-commit wins.
 
-Style (`.editorconfig`): 4-space indent, LF, max line 80, **no final newline**
-(Makefile uses tabs).
+## MCP servers
 
-## Conventions specific to this repo
+Both are stateless, streamable-http, single-tool. Ports differ deliberately
+(the renderer defaults to 8080, the RAG server to 8081).
 
-- Editing agent/skill behavior means editing markdown prompts, not code. Keep
-  the `paraview-coder` gotchas in `skills/paraview-coder/SKILL.md` intact —
-  they encode hard-won pvpython failure modes (unframed camera → blank image,
-  leftover `'var0'` array, volume transfer-function quartets, `InsideOut`
-  unreliable, Threshold `LowerThreshold`/`UpperThreshold` on 5.10+).
-- The prompt-formatter subagent has all tool permissions denied by design; it
-  only reformats prompts. Don't grant it tools.
-- `mcp/pvpython-renderer/pvpython_renderer/pv_runner.py` uses
-  `from paraview.simple import *` at module top. `F403`/`F405` are
-  intentionally ignored in ruff config — do not remove the star import.
-- `paraview` cannot be pip-installed; it is conda-only. `pyproject.toml`
-  omits it from dependencies by design.
+Neither package is installed into the `VisKnacks` env, so the
+`pvpython-renderer-mcp` console script is not on `PATH` — run each as a module
+from its own package directory:
 
-## MCP server quick reference
-
-The server (streamable-http, stateless) is what `opencode.json.template`
-points to. Start it with:
-
-```
-pvpython-renderer-mcp --server localhost --port 8080
+```bash
+# from mcp/pvpython-renderer/
+python -m pvpython_renderer.main --server localhost --port 8080
+# from mcp/pvpython-rag/
+python -m pvpython_rag.rag_mcp --host localhost --port 8081 \
+    --directory data/paraview-vector-db
 ```
 
-The registered console script is `pvpython-renderer-mcp` (from
-`mcp/pvpython-renderer/pyproject.toml`). The README says `paraview-mcp` —
-that name is stale.
+(A stale `paraview-mcp` script from an unrelated upstream package may be on
+`PATH` in conda `base`. It is not this project.)
 
-Uses **reverse-connection** to pvserver (not forward-connect). Running
-`pvserver --multi-clients --server-port=11111` is not needed and does not work.
+Renderer (`execute_code`):
 
-Logs: `~/paraview_logs/pvpython_renderer_external.log` and per-call
-`~/paraview_logs/call_<timestamp>_runner.log`.
+- Spawns an ephemeral `pvpython` runner + `pvserver` per call in
+  **reverse-connection** mode (`pvserver` advertises its system hostname, so a
+  forward `Connect("localhost")` deadlocks). Pre-starting your own `pvserver`
+  does nothing.
+- 120 s per-call timeout; `returncode: -1` means infrastructure failure, user
+  code never ran. Logs land in `~/paraview_logs/`.
+- Each call is a blank session — multi-step workflows must fit in one `code`
+  string.
 
-## pvpython-rag quick reference
+RAG (`query`):
 
-Builds FAISS indexes over ParaView's Python API for RAG retrieval. Run all
-commands from `mcp/pvpython-rag/` in the `pvpython_rag` conda env.
-
-```
-make clone-paraview          # git clones Kitware/ParaView into data/paraview-code
-make create-vector-databases # runs scripts/build_all_indexes.sh
-```
-
-- `scripts/build_all_indexes.sh` iterates every eligible git tag of the
-  vendored ParaView clone, checks each out into an isolated `git worktree`,
-  and builds `index_<tag>.faiss` + `metadata_<tag>.json` in `data/vector-db/`.
-  It skips tags lacking `Wrapping/Python/paraview`, RC/dev/final suffixes,
-  and already-built tags. `FORCE=1` rebuilds existing tags. Failures per tag
-  are logged and skipped; the script exits non-zero if any tag failed.
-- Embedding uses `device="cuda"` (see `pvpython_rag/main.py`) — a GPU is
-  required; there is no CPU fallback. `batch_size=1` and
-  `max_seq_length=2048` are deliberate OOM mitigations; the `environment.yaml`
-  carries GPU/CUDA deps.
-- `make freeze` regenerates `environment.yaml` from the live env, then prints
-  a reminder to manually verify channels include `nodefaults` and the pip
-  section excludes `pvpython_rag` itself.
-- `data/` (the ParaView clone and vector DBs) is gitignored.
+- `--directory` is required. Indexes are `index_v<ver>.faiss` +
+  `metadata_v<ver>.json`; `--pv-version` defaults to `5.13.3`.
+- Known inconsistency: `scripts/build_all_indexes.sh` writes to
+  `data/vector-db/`, but the shipped/expected index directory is
+  `data/paraview-vector-db/`.
+- Index building requires CUDA (`device="cuda"`, no CPU fallback);
+  `batch_size=1` and `max_seq_length=2048` are deliberate OOM mitigations. The
+  server itself loads the model on CPU.
+- Queries must carry the `QUERY_PREFIX` instruction string (CodeRankEmbed is
+  asymmetric); embedding config in `rag_mcp.py` must stay identical to
+  `main.py` or retrieval silently degrades.
+- `mcp/pvpython-rag/data/` is gitignored — indexes and the vendored ParaView
+  clone are local-only.
 
 ## Benchmark
 
-```
-make download-benchmark   # requires hf (huggingface_hub) CLI on PATH
-```
+`benchmark/benchmark.bash` runs `opencode run --agent build --auto` for a
+matrix of models × tasks, `cd`-ing into `benchmark/` so the gitignored
+`benchmark/.opencode/` config (MCP endpoints 8080/8081) is picked up. Keep that
+file in sync with `build-scripts/opencode.json.template`.
 
-`benchmark/` scripts are tracked; data dirs (`benchmark/data/`,
-`benchmark/scivisagentbench/`) are gitignored and downloaded on demand.
-
-## Known issues / doc drift
-
-`TODO.md` is a detailed, severity-ranked review of the MCP servers, skill,
-and agent — read it before "fixing" apparent bugs, they may already be
-tracked. Key drift it records: `mcp/pvpython-rag` under-declares its deps
-(runtime imports `faiss`/`numpy`/`sentence_transformers`, `pyproject.toml`
-lists only `fastmcp`) and its build writes to `data/vector-db/` while the
-server loads `data/paraview-vector-db/`; the renderer's own `README.md` and
-`mcp/pvpython-renderer/AGENTS.md` still use the stale `paraview-mcp` script
-name and `paraview_mcp` env name (the real env is `pvpython_renderer`);
-`skills/README.md` points at the nonexistent `skills/paraview/references/`.
+- Env knobs: `NUM_TASKS=n` (default all), `FORCE=1` (re-run tasks with an
+  existing image).
+- It deliberately does not `set -e`.
+- Destructive: after each model it tars the results, moves them to
+  `~/Desktop/MODEL.tar` — a literal fixed filename, so **every model
+  overwrites the previous tarball** — then `rm -rf`s `benchmark/results/`.
+- `run_metrics.bash` expects ground truth at
+  `benchmark/data/<task>/GS/<task>_gs.png`; no `GS/` directories exist in the
+  checked-out data, so scoring skips everything until they are supplied.
+- `benchmark/metrics.py` imports `imageio` and `skimage`, neither of which is
+  listed in `environment.yaml`. A freshly created env cannot run it — install
+  `imageio` and `scikit-image` manually.
