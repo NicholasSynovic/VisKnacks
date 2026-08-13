@@ -117,8 +117,9 @@ renderView2.CameraViewUp = renderView1.CameraViewUp
 
 ParaView draws a **gradient** background by default (`Background` →
 `Background2`). For a flat, solid color set both to the same RGB and disable the
-palette/gradient. On 5.10+ use `BackgroundColorMode`; older versions use
-`UseGradientBackground`.
+palette/gradient. `BackgroundColorMode` is the 5.10+ property this skill
+targets; `UseGradientBackground` is the pre-5.10 equivalent if you hit an older
+build.
 
 ```python
 renderView.Background = [0.32, 0.34, 0.43]    # RGB in [0, 1]
@@ -128,8 +129,8 @@ renderView.BackgroundColorMode = 'Single Color'
 ```
 
 To force a named palette (e.g. a white background for a figure) instead, see
-`LoadPalette` in `layout-and-views.md` or `OverrideColorPalette` on
-`SaveScreenshot` in `output.md`.
+`LoadPalette` in [layout-and-views.md](layout-and-views.md) or `OverrideColorPalette` on
+`SaveScreenshot` in [output.md](output.md).
 
 ## First-render reset
 

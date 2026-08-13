@@ -62,6 +62,13 @@ repos:
 
     - repo: local
       hooks:
+          - id: skills-ref
+            name: Agent Skills spec validation (locally installed)
+            entry: skills-ref validate skills/paraview-coder
+            language: system
+            files: ^skills/paraview-coder/
+            pass_filenames: false
+
           - id: prettier
             name: Prettier (locally installed)
             entry: prettier --write --ignore-unknown --end-of-line lf --insert-pragma false --trailing-comma es5 --tab-width 4 --use-tabs false --print-width 80

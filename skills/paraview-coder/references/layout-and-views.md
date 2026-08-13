@@ -39,7 +39,7 @@ layout1.SetSize(1800, 1400)
 ```
 
 Frame each view independently (and optionally link cameras — see
-`rendering-and-camera.md`):
+[rendering-and-camera.md](rendering-and-camera.md)):
 
 ```python
 SetActiveView(renderView1)
@@ -50,7 +50,7 @@ renderView2.ResetCamera(True, 0.9)
 
 ## Chart & histogram views
 
-For Plot Over Line (see `filters.md`) display the result in an XY chart view and
+For Plot Over Line (see [filters.md](filters.md)) display the result in an XY chart view and
 assign it to a layout cell so it appears in the saved image.
 
 ```python

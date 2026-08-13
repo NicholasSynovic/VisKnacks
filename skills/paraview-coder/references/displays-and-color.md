@@ -80,7 +80,7 @@ display.RescaleTransferFunctionToDataRange(True)
 ```
 
 Set an explicit color ramp with `RGBPoints` (requires `min`/`max` in scope — see
-`readers.md`). The flat list is repeated **`[value, r, g, b]`** quadruples, with
+[readers.md](readers.md)). The flat list is repeated **`[value, r, g, b]`** quadruples, with
 `r`, `g`, `b` in `[0, 1]`:
 
 ```python
@@ -130,7 +130,7 @@ display.LookupTable = var0LUT
 
 Volume rendering must be emitted as a complete unit, in this order:
 
-1. scalar range (`min`/`max`) — see `readers.md`,
+1. scalar range (`min`/`max`) — see [readers.md](readers.md),
 2. color transfer function,
 3. opacity transfer function,
 4. the volume display with **both** `LookupTable` and `ScalarOpacityFunction` set.

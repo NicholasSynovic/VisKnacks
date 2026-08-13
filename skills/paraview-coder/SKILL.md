@@ -12,14 +12,13 @@ description: >-
     even when the user does not say the words "ParaView" or "script". Reach for it
     any time the deliverable is Python code that drives ParaView to produce an
     image of data.
-license: Proprietary. Part of the ChatVis research artifact.
+license: BSD-3-Clause. LICENSE at the repository root has complete terms.
 compatibility: >-
-    Produces Python scripts intended to run under pvpython (ParaView's batch
-    interpreter, headless/offscreen). Snippets target ParaView 5.12+; the
-    paraview.simple API drifts between versions, so adapt if the local pvpython
-    rejects a call.
+    Requires pvpython (ParaView 5.10+), headless/offscreen mode, and an agent
+    able to call the Task tool. The paraview.simple API drifts between
+    versions; adapt if a call is rejected.
 metadata:
-    author: chatvis
+    author: nicholas-synovic
     version: "1.0"
 ---
 
@@ -32,8 +31,8 @@ pipeline, frame the camera explicitly, and save an image — nothing is implicit
 
 Before writing any code, the raw request is normalized into a structured,
 flat-prose ParaView prompt by the `paraview-prompt-formatter` subagent (see
-Step 0). Every step after that consumes the formatted prompt, not the raw
-request.
+Step 0 in the Workflow below). Every step after that consumes the formatted
+prompt, not the raw request.
 
 ## Output contract
 
@@ -59,63 +58,66 @@ leave them in the final script:
 
 - `<input_path>` — the dataset file the user named.
 - `<output_path>` — the screenshot path the user named (or a sensible default
-  like `screenshot.png`).
-- `'var0'` — a **placeholder scalar array name**. Replace it with the array the
-  user named (e.g. `'marschner_lobb'`, `'Temp'`, `'Pres'`). If the user names no
-  array, inspect the data and use the first PointData array (see
-  `references/readers.md`). A leftover `'var0'` on a dataset that has no such
-  array is the single most common cause of a blank or failed render.
+  such as `screenshot.png`).
+- `'var0'` — a **placeholder scalar array name**. Replace it with the array
+  the user named (e.g. `'marschner_lobb'`, `'Temp'`, `'Pres'`). If the user
+  names no array, inspect the data and use the first PointData array (see
+  [references/readers.md](references/readers.md)). A leftover `'var0'` on a
+  dataset that has no such array is the single most common cause of a blank or
+  failed render.
 
-## Step 0: Format the request (always first)
+## Workflow
 
-Before generating any code, call the Task tool with
+### Step 0 — Format the request (precondition, never skipped)
+
+Before anything else, call the Task tool with
 `subagent_type: paraview-prompt-formatter`, passing the user's raw
 natural-language request verbatim as the prompt. Do this for every request,
 including requests that already look well-structured.
 
-The subagent returns a structured, flat-prose ParaView prompt: ordered
-pipeline operations with concrete values preserved verbatim, the input/output
-paths, and a 1920 x 1080 screenshot convention baked in.
+The subagent returns a structured, flat-prose prompt with ordered pipeline
+operations, concrete values preserved verbatim, both file paths, and the
+1920 × 1080 screenshot convention baked in.
 
-The subagent is **blocking on paths**: if the input data path or output
-screenshot path is missing, it will ask the user for them and will not emit a
-formatted prompt until both are provided. Do not write any code until the
-subagent returns a formatted prompt. Relay its question to the user, wait for
-the answer, and re-invoke it if needed.
+The subagent is **blocking on paths**: if either path is missing it will ask the
+user and will not emit a prompt until both are provided. Do not write any code
+until the subagent returns a formatted prompt; relay its question to the user,
+wait for the answer, and re-invoke if needed.
 
-Every step below consumes the **formatted prompt** produced here, not the raw
-user request.
+### Steps 1-8 — Build the pipeline
 
-## Workflow
-
-Read the **formatted prompt** line by line and build the pipeline in this order.
-Skip steps that the prompt does not call for.
+Read the **formatted prompt** from Step 0 line by line — not the raw user
+request — and build the pipeline in this order. Skip any step the formatted
+prompt does not call for.
 
 1. **Reader** — pick the reader that matches the input file extension.
-   See `references/readers.md`.
+   See [references/readers.md](references/readers.md).
 2. **Data inspection (only if needed)** — fetch scalar range or spatial bounds.
    Needed _only_ before transfer functions or explicit camera placement; not for
-   plain slices, contours, clips, or wireframes. See `references/readers.md`.
+   plain slices, contours, clips, or wireframes.
+   See [references/readers.md](references/readers.md).
 3. **Filters** — slice, contour/isosurface, clip, glyph, stream tracer, tube,
    calculator, etc. Chain each filter's `Input=` to the _previous_ filter, not
-   always back to the reader. See `references/filters.md`.
+   always back to the reader. See [references/filters.md](references/filters.md).
 4. **Render view** — create the view and set its size.
-   See `references/rendering-and-camera.md`.
+   See [references/rendering-and-camera.md](references/rendering-and-camera.md).
 5. **Display & color** — show each source, choose a representation (surface,
    wireframe, volume), and color by an array if asked.
-   See `references/displays-and-color.md`.
+   See [references/displays-and-color.md](references/displays-and-color.md).
 6. **Layout / extra views** — layouts, side-by-side comparisons, chart and
-   histogram views, text annotations. See `references/layout-and-views.md`.
+   histogram views, text annotations.
+   See [references/layout-and-views.md](references/layout-and-views.md).
 7. **Camera framing** — frame the camera _after_ all `Show(...)` calls (see
-   gotcha below). See `references/rendering-and-camera.md`.
+   known pitfalls below).
+   See [references/rendering-and-camera.md](references/rendering-and-camera.md).
 8. **Output** — save the screenshot (or data / animation / exported scene).
-   See `references/output.md`.
+   See [references/output.md](references/output.md).
 
 Each reference file is a categorized catalog of working snippets with a one-line
 "use when". Open only the files the current request needs — they are detailed
 and not worth loading wholesale.
 
-## Gotchas
+## Known pitfalls
 
 These are the mistakes a script will make without being told otherwise. They are
 ParaView-/pvpython-specific and defy reasonable assumptions, so they matter more
@@ -145,7 +147,7 @@ than any single snippet.
   opaque black. "Default transfer function" means "use these ramps", not "omit
   them". Keep the array name identical across the whole chain (range → color TF →
   opacity TF → `ColorArrayName`) or it also renders black. See
-  `references/displays-and-color.md`.
+  [references/displays-and-color.md](references/displays-and-color.md).
 
 - **Inspect data only when you need it.** Emit the scalar-range / bounds
   snippets only before transfer functions or explicit camera math. Plain
@@ -164,10 +166,11 @@ than any single snippet.
   `pwf.Points` is a flat list of `[value, alpha, midpoint, sharpness]` per control
   point (`midpoint`/`sharpness` default to `0.5`/`0.0`). Emitting bare
   `[value, alpha]` pairs silently corrupts the ramp. Likewise `lut.RGBPoints` is
-  `[value, r, g, b]` quadruples. See `references/displays-and-color.md`.
+  `[value, r, g, b]` quadruples. See
+  [references/displays-and-color.md](references/displays-and-color.md).
 
 - **Threshold uses `LowerThreshold`/`UpperThreshold` on ParaView 5.10+**, not a
   single `ThresholdRange`, and has no `AllPoints` property. The `Histogram`
   filter's bin count must be set via `GetProperty('NumberOfBins')` /
   `'BinCount'` + `SetElement(0, n)`, not by direct attribute assignment. See
-  `references/filters.md`.
+  [references/filters.md](references/filters.md).

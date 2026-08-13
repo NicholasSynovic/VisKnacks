@@ -16,7 +16,7 @@ the path the user named (or a sensible default like `screenshot.png`).
 ## Save a screenshot
 
 The usual final step. `Render()` first, then `SaveScreenshot`. This must come
-_after_ the camera-framing call (see `rendering-and-camera.md`) or the image will
+_after_ the camera-framing call (see [rendering-and-camera.md](rendering-and-camera.md)) or the image will
 be blank.
 
 ```python
@@ -65,7 +65,7 @@ SaveData('<output_path>', proxy=slice1,
 `SaveData` to a mesh format requires **surface** (polydata) input. Volumetric
 data (image data, structured/unstructured grids) must be turned into a
 triangulated surface first — `ExtractSurface` then `Triangulate` (see
-`filters.md`) — and the triangulated proxy is what you save.
+[filters.md](filters.md)) — and the triangulated proxy is what you save.
 
 ```python
 extractSurface1 = ExtractSurface(Input=contour1)

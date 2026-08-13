@@ -7,6 +7,15 @@ Pick the reader by file extension. Every script starts with
 
 - [Version check](#version-check)
 - [Readers by extension](#readers-by-extension)
+    - [`.vtk` (legacy VTK)](#vtk-legacy-vtk)
+    - [`.ex2` / Exodus / IOSS](#ex2--exodus--ioss)
+    - [`.vtp` (XML PolyData)](#vtp-xml-polydata)
+    - [`.vtu` (XML UnstructuredGrid)](#vtu-xml-unstructuredgrid)
+    - [`.vtr` (XML RectilinearGrid)](#vtr-xml-rectilineargrid)
+    - [`.vtm` (XML MultiBlock)](#vtm-xml-multiblock)
+    - [`.csv` (CSVReader)](#csv-csvreader)
+    - [`.nc` (NetCDFReader)](#nc-netcdfreader)
+    - [Generic open / sources](#generic-open--sources)
 - [RAW volume files](#raw-volume-files)
 - [Data inspection](#data-inspection)
 
@@ -22,6 +31,10 @@ print(GetParaViewVersion())   # e.g. (5, 13); APIs below differ across versions
 ```
 
 ## Readers by extension
+
+Covered here: `.vtk`, `.ex2`/Exodus/IOSS, `.vtp`, `.vtu`, `.vtr`, `.vtm`,
+`.csv`, `.nc`, and headerless `.raw`. For anything else, fall back to
+[`OpenDataFile`](#generic-open--sources), which selects a reader by extension.
 
 ### `.vtk` (legacy VTK)
 
@@ -57,6 +70,19 @@ mpasvtp = XMLPolyDataReader(registrationName='input', FileName=['<input_path>'])
 mpasvtp.PointArrayStatus = ['velocity', 'temperature', 'salinity']  # adapt to the file
 ```
 
+### `.vtu` (XML UnstructuredGrid)
+
+Use when the input is an XML unstructured grid (tetrahedra, hexahedra, mixed
+cells). Declare the point (or cell) arrays to load.
+
+```python
+reader = XMLUnstructuredGridReader(registrationName='input', FileName=['<input_path>'])
+reader.PointArrayStatus = ['var0']   # adapt to the file
+```
+
+For a `.pvtu` (partitioned) file use `XMLPartitionedUnstructuredGridReader`
+with the same properties.
+
 ### `.vtr` (XML RectilinearGrid)
 
 Use for rectilinear grids; declare the cell (or point) arrays to load.
@@ -78,7 +104,7 @@ canslices = XMLMultiBlockDataReader(FileName=['<input_path>'])
 
 Use for tabular data. A CSV is a table, not geometry — to plot it in 3D, feed it
 through `TableToPoints` to turn named columns into a point cloud (see
-`filters.md`).
+[filters.md](filters.md)).
 
 ```python
 csv = CSVReader(FileName=['<input_path>'])
@@ -150,7 +176,7 @@ Map the on-disk data type to ParaView's `DataScalarType`:
 
 A 3D RAW volume cannot use the default image-slice representation — show it as
 `'Outline'` (cheap) or `'Volume'` (see volume rendering in
-`displays-and-color.md`):
+[displays-and-color.md](displays-and-color.md)):
 
 ```python
 display = Show(reader, renderView)

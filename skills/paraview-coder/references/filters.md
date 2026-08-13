@@ -47,7 +47,7 @@ slice1.PointMergeMethod = 'Uniform Binning'
 
 Use to compute isolines/isosurfaces from a point-centered scalar. Use the
 isosurface value from the request verbatim; if none is given, derive it from
-`(min + max) / 2` (see data inspection in `readers.md`). **Replace `'var0'`** with
+`(min + max) / 2` (see data inspection in [readers.md](readers.md)). **Replace `'var0'`** with
 the real array name — a leftover `'var0'` logs `Contour array is null` and renders
 nothing. When the contour follows another filter, set `Input=` to that filter.
 
@@ -67,7 +67,7 @@ contour1.ContourBy = ['POINTS', array_name]
 ```
 
 For "several contours across the range", sample N isovalues between `min` and
-`max` (see data inspection in `readers.md`) rather than hand-listing them. Use
+`max` (see data inspection in [readers.md](readers.md)) rather than hand-listing them. Use
 `np.logspace` instead only when the data spans orders of magnitude and `min > 0`.
 
 ```python
@@ -122,7 +122,7 @@ clip.ClipType.Normal = [1.0, 0.0, 0.0]
 
 ## Table To Points
 
-Use to turn a CSV/table (see `CSVReader` in `readers.md`) into a point cloud by
+Use to turn a CSV/table (see `CSVReader` in [readers.md](readers.md)) into a point cloud by
 naming the columns that hold the x/y/z coordinates. The result is geometry you
 can display, triangulate (Delaunay 3D), or clip.
 
@@ -146,7 +146,7 @@ delaunay3D = Delaunay3D(registrationName='Delaunay3D', Input=points)
 
 Use to trace streamlines through a vector field from a seed. Set `Vectors` to
 the vector array on the input; tune seed `Center`/`Radius` from the dataset
-bounds (see `readers.md`).
+bounds (see [readers.md](readers.md)).
 
 ```python
 streamTracer = StreamTracer(
@@ -225,7 +225,7 @@ glyph.Stride = 10
 ```
 
 A good auto `ScaleFactor` is ~1% of the bounding-box diagonal (compute the
-diagonal from `bounds` — see `readers.md`).
+diagonal from `bounds` — see [readers.md](readers.md)).
 
 ## Warp By Vector
 
@@ -278,7 +278,7 @@ connectivity1 = Connectivity(registrationName='Connectivity1', Input=contour1)
 
 Use to turn a volumetric dataset (image data, structured/unstructured grid) into
 a triangulated surface — required before exporting to STL/PLY/OBJ
-(see `output.md`). Polydata only needs `Triangulate`.
+(see [output.md](output.md)). Polydata only needs `Triangulate`.
 
 ```python
 extractSurface1 = ExtractSurface(registrationName='ExtractSurface1', Input=reader)
@@ -325,7 +325,7 @@ for i in range(table.GetNumberOfRows()):
 ```
 
 To show a histogram in a chart view instead of printing it, see
-`layout-and-views.md`.
+[layout-and-views.md](layout-and-views.md).
 
 ## Calculator
 
@@ -358,7 +358,7 @@ plotOverLine1.Point1 = [0, 0, 0]
 plotOverLine1.Point2 = [0, 0, 10]
 ```
 
-Display it in a chart view (see `layout-and-views.md`) or write it to CSV:
+Display it in a chart view (see [layout-and-views.md](layout-and-views.md)) or write it to CSV:
 
 ```python
 writer = CreateWriter('<output_path>', plotOverLine1)  # e.g. line-plot.csv

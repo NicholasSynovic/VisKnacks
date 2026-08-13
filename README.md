@@ -9,10 +9,13 @@
     - [Table of Contents](#table-of-contents)
     - [About](#about)
     - [Provided Tooling](#provided-tooling)
-        - [`prompt-formatter` Subagent](#prompt-formatter-subagent)
-        - [`paraview-coder` Agent Skill](#paraview-coder-agent-skill)
-        - [`pvpython-rag-mcp` MCP Service](#pvpython-rag-mcp-mcp-service)
-        - [`pvpython-renderer-mcp` MCP Service](#pvpython-renderer-mcp-mcp-service)
+        - [Subagents](#subagents)
+            - [`paraview-prompt-formatter`](#paraview-prompt-formatter)
+        - [Agent Skills](#agent-skills)
+            - [`paraview-coder`](#paraview-coder)
+        - [MCP Services](#mcp-services)
+            - [`pvpython-rag-mcp`](#pvpython-rag-mcp)
+            - [`pvpython-renderer-mcp`](#pvpython-renderer-mcp)
     - [Installing](#installing)
         - [Dependencies](#dependencies)
     - [Contributing](#contributing)
@@ -24,15 +27,32 @@ VisKnacks provides subagemts, agent skills, and MCP services for rendering data 
 
 ## Provided Tooling
 
-### `prompt-formatter` Subagent
+VisKnacks provides
 
-Takes natural language as input and translates it into
+- subagents,
+- agent skills, and
+- model-context provider (MCP) services
 
-### `paraview-coder` Agent Skill
+for translating natural language prompts and scientific datasets into ParaView
+visualizations.
 
-### `pvpython-rag-mcp` MCP Service
+### Subagents
 
-### `pvpython-renderer-mcp` MCP Service
+Subagents allow the dispatching of individual jobs to seperate instances of LLMs with specific instructions. This enables workflows where ephemeral models with little to no context of the greater plan to operate on natural language and feed the results back to the parent model.
+
+#### `paraview-prompt-formatter`
+
+TODO: Add description of agents/paraview-prompt-formatter.md
+
+### Agent Skills
+
+#### `paraview-coder`
+
+### MCP Services
+
+#### `pvpython-rag-mcp`
+
+#### `pvpython-renderer-mcp`
 
 ## Installing
 
