@@ -1,6 +1,8 @@
-.PHONY: build create-dev docker-build docker-run freeze
+.PHONY: apptainer-build apptainer-run build create-dev docker-build \
+	docker-run freeze
 
 IMAGE := pvpython-renderer:latest
+SIF := pvpython-renderer.sif
 
 build:
 	rm -rf build
@@ -14,6 +16,15 @@ docker-run:
 	docker run --rm -p 8080:8080 \
 		-v paraview-logs:/home/pvuser/paraview_logs \
 		$(IMAGE)
+
+apptainer-build:
+	apptainer build --fakeroot $(SIF) apptainer.def
+
+# Apptainer shares the host network namespace, so no port publishing is
+# needed and the runscript binds localhost by default.
+# Serves the MCP endpoint at http://localhost:8080/mcp
+apptainer-run:
+	apptainer run $(SIF)
 
 create-dev:
 	conda env create --file environment.yaml --name pvpython_renderer || \

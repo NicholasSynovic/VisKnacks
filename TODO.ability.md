@@ -232,7 +232,7 @@ _Last reviewed: 2026-08-04 08:02_
       or explicitly document the intentional single-file choice.
 - [ ] **[S3] `pvpython-rag` placeholder package metadata vs. the renderer's populated metadata** — `mcp/pvpython-rag/pyproject.toml:3-4`
       Why it matters: `version = "0.1.0"`, `description = "Add your description
-    here"`, and no authors/license/urls/classifiers, while the renderer has
+here"`, and no authors/license/urls/classifiers, while the renderer has
       all of them. Ships meaningless metadata and no license for a package that
       sits beside a BSD-licensed sibling.
       Suggested fix: fill in description/authors/license/urls to match the

@@ -30,6 +30,10 @@ AGENTS.md
 Dockerfile
 .dockerignore
 
+# Apptainer build recipe and its (multi-GB) output image
+apptainer.def
+*.sif
+
 # Host conda env pin; the container uses environment.container.yaml
 environment.yaml
 

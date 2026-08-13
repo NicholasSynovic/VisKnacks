@@ -222,3 +222,6 @@ benchmark/scivisagentbench
 *.zip
 benchmark/data/
 benchmark/results/
+
+# Apptainer / Singularity images (multi-GB build artifacts)
+*.sif

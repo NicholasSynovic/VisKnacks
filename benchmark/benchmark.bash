@@ -16,9 +16,9 @@ DATA_DIR="$SCRIPT_DIR/data"
 RESULTS_DIR="$SCRIPT_DIR/results"
 
 MODELS=(
-    argo/claudeopus48
+    # argo/claudeopus48
     # argo-shim/claudesonnet46
-    argo/gemini35flash
+    # argo/gemini35flash
     argo/gpt55
 )
 

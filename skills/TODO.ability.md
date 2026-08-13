@@ -178,7 +178,7 @@ _Last reviewed: 2026-08-04 08:10_
 
 - [ ] **[S2] License field is prose, not an SPDX identifier** — `skills/paraview-coder/SKILL.md:15`
       Why it matters: `license: Proprietary. Part of the ChatVis research
-    artifact.` is human-readable but not machine-parseable, and it names
+artifact.` is human-readable but not machine-parseable, and it names
       "ChatVis" while the repo/README brand is "SciVisAgent"/"VisKnacks".
       Tooling that scans skill frontmatter for a license can't classify it, and
       the naming drift muddies provenance/ownership over time.

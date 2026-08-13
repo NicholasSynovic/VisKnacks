@@ -1,8 +1,9 @@
-.PHONY: build clone-paraview create-dev create-vector-databases docker-build \
-	docker-run freeze
+.PHONY: apptainer-build apptainer-run build clone-paraview create-dev \
+	create-vector-databases docker-build docker-run freeze
 
 CONDA_ENV := pvpython_rag
 IMAGE := pvpython-rag:latest
+SIF := pvpython-rag.sif
 
 build:
 	rm -rf build
@@ -19,6 +20,17 @@ docker-run:
 		-v "$(CURDIR)/data/vector-db:/data:ro" \
 		-v hf-cache:/cache/huggingface \
 		$(IMAGE)
+
+# Needs tens of GB of scratch: environment.yaml pins torch + CUDA 13.
+apptainer-build:
+	APPTAINER_TMPDIR=$${APPTAINER_TMPDIR:-/var/tmp} \
+		apptainer build --fakeroot $(SIF) apptainer.def
+
+# Requires an NVIDIA GPU and prebuilt indexes in data/vector-db
+# (run `make create-vector-databases` first).
+# Serves the MCP endpoint at http://localhost:8081/mcp
+apptainer-run:
+	apptainer run --nv --bind "$(CURDIR)/data/vector-db:/data:ro" $(SIF)
 
 create-dev:
 	conda env create --file environment.yaml --name $(CONDA_ENV) || \

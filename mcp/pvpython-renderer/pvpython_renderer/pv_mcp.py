@@ -170,6 +170,7 @@ def _spawn_runner(
 
     cmd = [
         pvpython,
+        "--force-offscreen-rendering",
         str(PV_RUNNER),
         "--pv-host",
         "localhost",

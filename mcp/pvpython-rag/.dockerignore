@@ -30,6 +30,10 @@ AGENTS.md
 Dockerfile
 .dockerignore
 
+# Apptainer build recipe and its (multi-GB) output image
+apptainer.def
+*.sif
+
 # This image is serve-only. Index building (scripts/build_all_indexes.sh)
 # needs a GPU and a full ParaView git clone and stays a host-side task.
 scripts/
