@@ -1,0 +1,39 @@
+[project]
+name = "visknacks"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+license = "BSD-3-Clause"
+authors = [
+    {name = "Nicholas M. Synovic", email = "nicholas.synovic@gmail.com"},
+]
+keywords = ["paraview", "mcp", "visualization", "llm", "scientific-visualization"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+[project.urls]
+Homepage = "https://github.com/NicholasSynovic/VisKnacks"
+Repository = "https://github.com/NicholasSynovic/VisKnacks"
+Issues = "https://github.com/NicholasSynovic/VisKnacks/issues"
+
+[project.scripts]
+pvpython-renderer-mcp = "pvpython_renderer.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.lint]
+ignore = ["F403", "F405"]

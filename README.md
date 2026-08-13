@@ -20,6 +20,7 @@ Large scientific simulations on HPC systems can produce terabytes of data per ti
         - [MCP Services](#mcp-services)
             - [`pvpython-rag-mcp`](#pvpython-rag-mcp)
             - [`pvpython-renderer-mcp`](#pvpython-renderer-mcp)
+    - [License](#license)
 
 ## System Overview
 
@@ -41,10 +42,15 @@ VisKnacks is structured around three pluggable component types that together ena
 
 #### `pvpython-rag-mcp`
 
-> **Status: work in progress.** Index path resolution and dependency declarations are known to be incomplete; see `TODO.md` for details. Not wired into the default build.
+> **Status: work in progress.**
 
 [`pvpython-rag-mcp`](mcp/pvpython-rag/) is a FastMCP server that exposes a single `query` tool over streamable-http. At startup it loads a prebuilt FAISS vector index (`IndexFlatIP`, cosine similarity) and a `{function, docstring, code}` metadata sidecar for a specified ParaView version into memory, alongside the `nomic-ai/CodeRankEmbed` embedding model. When `query` is called with a natural-language description, the query is embedded with the same model used to build the index and matched against the FAISS index, returning the top-k `{function, docstring, code, score}` records from the ParaView Python API. This lets the code-generating agent look up correct `paraview.simple` API usage for a pinned version rather than relying on training-data recollection, reducing incorrect method signatures and deprecated calls — particularly important given that the `paraview.simple` API drifts significantly across ParaView versions. Index building requires a CUDA GPU; the server itself runs on CPU. Indexes must be prebuilt before the server starts and the server defaults to port 8081 to avoid collision with `pvpython-renderer-mcp`.
 
 #### `pvpython-renderer-mcp`
 
 [`pvpython-renderer-mcp`](mcp/pvpython-renderer/) is a FastMCP server that exposes a single `execute_code` tool over streamable-http, and is the component that enables HPC rendering. Each call is fully stateless: the server spawns an ephemeral `pvpython` runner and a single-client `pvserver` in reverse-connection mode (the server dials back to the runner, rather than the more common forward-connect pattern, because `pvserver` advertises its system hostname rather than `localhost`), executes the supplied `paraview.simple` Python script inside the resulting session, captures all stdout and stderr, and tears both processes down. The agent submits the complete `pvpython` script produced by `paraview-coder`, receives the execution logs and exit code, and uses them to determine whether the pipeline succeeded or requires refinement — all without transferring the underlying scientific dataset off the HPC system. The stateless, per-call design means iterative pipeline refinement requires no session management. The service is Linux-64 only, requires `pvserver` and `pvpython` on `PATH` at call time, and enforces a 120-second per-call execution timeout.
+
+## License
+
+This project is licensed uder BSD-3-Clause. See [LICENSE](LICENSE) for more
+details.
