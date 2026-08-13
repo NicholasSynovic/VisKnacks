@@ -11,6 +11,12 @@
             "url": "http://localhost:8080/mcp",
             "enabled": true,
             "timeout": 150000
+        },
+        "pvpython-rag-mcp": {
+            "type": "remote",
+            "url": "http://localhost:8081/mcp",
+            "enabled": true,
+            "timeout": 150000
         }
     }
 }

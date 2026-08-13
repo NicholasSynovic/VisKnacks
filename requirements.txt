@@ -1,4 +1,0 @@
-fastmcp
-numpy
-pandas
-sentence-transformers
