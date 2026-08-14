@@ -71,20 +71,7 @@ repos:
 
           - id: prettier
             name: Prettier (locally installed)
-            entry: prettier --write --ignore-unknown --end-of-line lf --insert-pragma false --trailing-comma es5 --tab-width 4 --use-tabs false --print-width 80
+            entry: prettier --write --ignore-unknown --end-of-line lf --insert-pragma false --trailing-comma es5 --tab-width 2 --use-tabs false --print-width 80
             language: system
-            types_or:
-                [
-                    javascript,
-                    jsx,
-                    ts,
-                    tsx,
-                    css,
-                    less,
-                    scss,
-                    html,
-                    json,
-                    markdown,
-                    yaml,
-                ]
+            types_or: [markdown]
             pass_filenames: true

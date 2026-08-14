@@ -1,10 +1,10 @@
 [project]
-name = "pvpython-renderer"
-version = "0.3.0"
+name = "pvpython-rag"
+version = "0.1.0"
 dependencies = []
 
 [project.scripts]
-pvpython-renderer-mcp = "pvpython_renderer.main:main"
+pvpython-rag-mcp = "pvpython_rag.main:main"
 
 [build-system]
 requires = ["uv_build>=0.12.3,<0.13.0"]

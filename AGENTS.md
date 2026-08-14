@@ -52,10 +52,10 @@ exist**; ignore them when the docs mention them:
 - `mcp/pvpython-renderer/README.md`: `make create-dev`, `make build`,
   `uv build` from that directory, and the `pvpython_renderer` conda env. There
   is no `mcp/pvpython-renderer/Makefile`.
-- `mcp/pvpython-rag/`: no `Makefile`, no `pyproject.toml`, no
-  `environment.yaml`. `make clone-paraview` (referenced by
-  `scripts/build_all_indexes.sh`) and `make download-benchmark` (referenced by
-  `benchmark/benchmark.bash`) do not exist — clone/download manually.
+- `mcp/pvpython-rag/`: no `Makefile`, no `environment.yaml`. The
+  `make clone-paraview` (in `scripts/build_all_indexes.sh`) and
+  `make download-benchmark` (in `benchmark/benchmark.bash`) targets do not
+  exist — clone/download manually.
 - `mcp/pvpython-rag/pvpython_rag.egg-info/` is stale build residue.
 - Any mention of the `paraview-mcp` script name: the real console script is
   `pvpython-renderer-mcp`.
@@ -63,20 +63,55 @@ exist**; ignore them when the docs mention them:
 ## Build
 
 ```bash
-make build   # -> build-scripts/opencode.bash
+make build
 ```
 
-Copies `opencode.json.template`, the subagent, and the skill into
-`build/.opencode/`. `build/` is gitignored.
+Two stages: `build-scripts/opencode.bash` copies `opencode.json.template`, the
+subagent, and the skill into `build/.opencode/`; then `uv build --package` runs
+for each MCP server. `build/` and `dist/` are gitignored.
 
-Gotcha: the script uses bare `mkdir` (not `-p`) for the `agents`/`skills`
+Gotcha: `opencode.bash` uses bare `mkdir` (not `-p`) for the `agents`/`skills`
 subdirs, so re-running over an existing `build/.opencode` prints errors while
 still exiting 0. `rm -rf build/.opencode` first for a clean build.
 
-Root `uv build` is currently **broken**: `pyproject.toml` uses the `uv_build`
-backend, which expects `src/visknacks/__init__.py`; there is no `src/` tree.
-The root package also declares a `pvpython-renderer-mcp` script pointing at
-`pvpython_renderer`, which lives under `mcp/`, not at the root.
+### uv workspace
+
+The root is a **virtual** workspace root (`[tool.uv] package = false`) with both
+MCP servers as members. Always build by package:
+
+```bash
+uv build --package pvpython-renderer
+uv build --package pvpython-rag
+```
+
+Bare `uv build` fails, but not for the reason you would guess: `package = false`
+is not honored by `uv build`, which still tries to build the root `visknacks`
+project. Because the root declares no `[build-system]`, uv falls back to
+setuptools, which rejects the deprecated `License :: OSI Approved :: BSD
+License` classifier alongside the PEP 639 `license = "BSD-3-Clause"` expression.
+Dropping that one classifier is the fix if bare `uv build` is ever wanted.
+
+Both members use the `uv_build` backend with a **flat layout**, so each needs
+
+```toml
+[tool.uv.build-backend]
+module-root = ""
+```
+
+Without it `uv_build` looks for `src/<module>/__init__.py` and the build fails.
+
+Wheel metadata is **not** inherited from the root. uv workspaces share a
+lockfile and resolution environment only — never `[project]` fields. Both member
+`pyproject.toml`s currently declare `dependencies = []`, so the wheels ship with
+no `Requires-Dist` and no `Requires-Python`; installing one into a clean env
+gives an `ImportError` on `mcp`/`fastmcp` at runtime. Real deps
+(`fastmcp>=2.9.2`, `httpx==0.28.1`, `mcp[cli]==1.9.4` for the renderer) live in
+git history at `HEAD:mcp/pvpython-renderer/pyproject.toml`. Restore them in the
+member, not the root.
+
+Broken console script: `pvpython-rag-mcp = "pvpython_rag.main:main"` points at
+the index _builder_, which has no `main()`. The server entrypoint is
+`pvpython_rag.rag_mcp:main`.
 
 ## Lint / format / test
 

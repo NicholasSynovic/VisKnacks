@@ -1,7 +1,7 @@
 [project]
 name = "visknacks"
 version = "0.1.0"
-description = "Add your description here"
+description = "HPC ready scientific visualization agent (SciVisAgent) tooling for hybrid local-HPC ParaView workflows, compatible with existing agent harnesses"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
@@ -36,12 +36,15 @@ Homepage = "https://github.com/NicholasSynovic/VisKnacks"
 Repository = "https://github.com/NicholasSynovic/VisKnacks"
 Issues = "https://github.com/NicholasSynovic/VisKnacks/issues"
 
-[project.scripts]
-pvpython-renderer-mcp = "pvpython_renderer.main:main"
 
-[build-system]
-requires = ["uv_build>=0.12.3,<0.13.0"]
-build-backend = "uv_build"
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+    "mcp/pvpython-renderer",
+    "mcp/pvpython-rag"
+]
 
 [tool.ruff]
 line-length = 80
