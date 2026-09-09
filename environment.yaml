@@ -299,4 +299,3 @@ dependencies:
           - watchfiles==1.2.0
           - websockets==16.1.1
           - zipp==4.1.0
-prefix: /home/nicholas/.local/bin/miniconda/envs/VisKnacks
