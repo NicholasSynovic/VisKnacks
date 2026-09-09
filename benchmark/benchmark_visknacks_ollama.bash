@@ -17,10 +17,14 @@ RESPONSE_FILE="${RUN_DIR}/${MODEL}-response.json"
 
 # Specify Ollama local variables
 BIND_HOST="127.0.0.1"
-PORT=""
+OLLAMA_PORT=""
 OLLAMA_PID=""
 # TODO: Parameterize this
 PROMPT="hello world"
+
+# Specify MCP local variables
+MCP_1_PORT=""
+MCP_2_PORT=""
 
 # Specify the ollama model to benchmark against via `-v OLLAMA_MODEL=`
 MODEL="${OLLAMA_MODEL:-}"
@@ -134,14 +138,24 @@ if ! command -v ss >/dev/null 2>&1; then
 fi
 # --- End tests ---
 
-mkdir -p "${RUN_DIR}"
+# --- Find and start pvpython-renderer-mcp (MCP 1) port ---
+MCP_1_PORT="$(find_free_port)"
+pvpython-renderer-mcp --server $BIND_HOST --port $MCP_1_PORT
+# --- End MCP 1 port ---
 
-PORT="$(find_free_port)"
-API_BASE="http://${BIND_HOST}:${PORT}"
+# --- Find and start pvpython-rag-mcp (MCP 2) port ---
+MCP_2_PORT="$(find_free_port)"
+pvpython-rag-mcp --server $BIND_HOST --port $MCP_1_PORT
+# --- End MCP 2 port ---
+
+
+OLLAMA_PORT="$(find_free_port)"
+API_BASE="http://${BIND_HOST}:${OLLAMA_PORT}"
 
 # OLLAMA_HOST controls the address and port used by `ollama serve`.
-export OLLAMA_HOST="${BIND_HOST}:${PORT}"
+export OLLAMA_HOST="${BIND_HOST}:${OLLAMA_PORT}"
 
+mkdir -p "${RUN_DIR}"
 echo "Host: $(hostname)"
 echo "Started: $(date --iso-8601=seconds)"
 echo "PBS job ID: ${PBS_JOBID:-not-set}"
@@ -183,7 +197,7 @@ if (( ready == 0 )); then
 fi
 
 # Do not pull models in this job. Require the requested model to already exist.
-if ! OLLAMA_HOST="${BIND_HOST}:${PORT}" ollama show "${MODEL}" >/dev/null 2>&1; then
+if ! OLLAMA_HOST="${BIND_HOST}:${OLLAMA_PORT}" ollama show "${MODEL}" >/dev/null 2>&1; then
     echo "ERROR: Required model is not available locally: ${MODEL}" >&2
     echo "This job is configured not to pull models." >&2
     echo "Expected model directory: ${OLLAMA_MODELS}" >&2

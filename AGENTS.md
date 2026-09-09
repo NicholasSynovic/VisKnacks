@@ -15,7 +15,8 @@ markdown prompts plus two MCP servers:
   `InsideOut` unreliable, `LowerThreshold`/`UpperThreshold` on 5.10+). Do not
   trim it for brevity.
 - `mcp/pvpython-renderer/` — FastMCP server, one tool `execute_code`. Its
-  `README.md` is accurate and detailed; read it before touching the server.
+  `README.md` is detailed but its env/run instructions are stale (see
+  "Stale docs"); the `pv_mcp.py` module docstring is the source of truth.
 - `mcp/pvpython-rag/` — FastMCP server, one tool `query`, over FAISS indexes of
   the ParaView Python API. WIP. `README.md` is empty; use module docstrings.
 - `build-scripts/` — assembles the distributable into `build/`.
@@ -51,7 +52,9 @@ exist**; ignore them when the docs mention them:
 
 - `mcp/pvpython-renderer/README.md`: `make create-dev`, `make build`,
   `uv build` from that directory, and the `pvpython_renderer` conda env. There
-  is no `mcp/pvpython-renderer/Makefile`.
+  is no `mcp/pvpython-renderer/Makefile`. Its run command
+  (`pvpython-renderer-mcp ...`) is also broken — see "Broken console scripts"
+  under Build.
 - `mcp/pvpython-rag/`: no `Makefile`, no `environment.yaml`. The
   `make clone-paraview` (in `scripts/build_all_indexes.sh`) and
   `make download-benchmark` (in `benchmark/benchmark.bash`) targets do not
@@ -68,7 +71,13 @@ make build
 
 Two stages: `build-scripts/opencode.bash` copies `opencode.json.template`, the
 subagent, and the skill into `build/.opencode/`; then `uv build --package` runs
-for each MCP server. `build/` and `dist/` are gitignored.
+for each MCP server, writing wheels + sdists into the root `dist/`.
+`build/` and `dist/` are gitignored. `uv` is pinned inside the conda env
+(`uv=0.12.3`), so activate the env before building.
+
+`make install` runs `uv pip install dist/*.tar.gz` into the active env — the
+only way the console scripts get onto `PATH` (the PBS benchmark script expects
+them there).
 
 Gotcha: `opencode.bash` uses bare `mkdir` (not `-p`) for the `agents`/`skills`
 subdirs, so re-running over an existing `build/.opencode` prints errors while
@@ -108,9 +117,15 @@ the packages are only ever installed into the `VisKnacks` conda env, which
 already contains all runtime deps (`fastmcp`, `mcp`, `httpx`, etc.) via
 `environment.yaml`. The wheels are not meant for standalone pip installation.
 
-Broken console script: `pvpython-rag-mcp = "pvpython_rag.main:main"` points at
-the index _builder_, which has no `main()`. The server entrypoint is
-`pvpython_rag.rag_mcp:main`.
+**Both** console scripts are broken — run the servers as modules instead:
+
+- `pvpython-renderer-mcp = "pvpython_renderer.main:main"` points at a module
+  that no longer exists (the code was refactored into
+  `pvpython_renderer/mcp/`); the real entrypoint is
+  `pvpython_renderer.mcp.main:main`.
+- `pvpython-rag-mcp = "pvpython_rag.main:main"` points at the index _builder_,
+  which has no `main()`. The server entrypoint is
+  `pvpython_rag.rag_mcp:main`.
 
 ## Lint / format / test
 
@@ -139,13 +154,13 @@ pre-commit run --all-files
 Both are stateless, streamable-http, single-tool. Ports differ deliberately
 (the renderer defaults to 8080, the RAG server to 8081).
 
-Neither package is installed into the `VisKnacks` env, so the
-`pvpython-renderer-mcp` console script is not on `PATH` — run each as a module
-from its own package directory:
+The packages are not installed into the `VisKnacks` env by default, and both
+console scripts are broken anyway — run each server as a module from its own
+package directory:
 
 ```bash
 # from mcp/pvpython-renderer/
-python -m pvpython_renderer.main --server localhost --port 8080
+python -m pvpython_renderer.mcp.main --server localhost --port 8080
 # from mcp/pvpython-rag/
 python -m pvpython_rag.rag_mcp --host localhost --port 8081 \
     --directory data/paraview-vector-db
@@ -200,3 +215,10 @@ file in sync with `build-scripts/opencode.json.template`.
 - `benchmark/metrics.py` imports `imageio` and `skimage`, neither of which is
   listed in `environment.yaml`. A freshly created env cannot run it — install
   `imageio` and `scikit-image` manually.
+- `benchmark_visknacks_ollama.bash` is a **PBS job script for ALCF**
+  (`qsub -v OLLAMA_MODEL=<model> ...`), not runnable locally. WIP: the prompt
+  is hardcoded and the MCP-server startup sections are empty. It requires the
+  MCP console scripts, `pvpython`, `opencode`, and `ollama` on `PATH` inside
+  the job, and refuses to pull models — the model must already exist in
+  `/eagle/EVITA/ollama-models`. Note it checks for `pvpython-rag-mcp`, which
+  is currently broken (see "Broken console scripts").
