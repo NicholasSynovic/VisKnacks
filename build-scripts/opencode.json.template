@@ -19,5 +19,42 @@
             "enabled": true,
             "timeout": 150000
         }
+    },
+    "provider": {
+        "ollama": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "Ollama (local)",
+            "options": {
+                "baseURL": "http://localhost:11434/v1"
+            },
+            "models": {
+                "deepseek-r1:70b": {
+                    "name": "DeepSeek R1 70B",
+                    "reasoning": true
+                },
+                "gemma4:31b": {
+                    "name": "Gemma 4 31B"
+                },
+                "granite4.2:30b": {
+                    "name": "Granite 4.2 30B"
+                },
+                "gpt-oss:120b": {
+                    "name": "GPT-OSS 120B",
+                    "reasoning": true
+                },
+                "qwen3.8:latest": {
+                    "name": "Qwen 3.8"
+                },
+                "llama4:16x17b": {
+                    "name": "Llama 4 16x17B"
+                },
+                "nemotron-3.5-lightning:latest": {
+                    "name": "Nemotron 3.5 Lightning"
+                },
+                "muse-glimmer:latest": {
+                    "name": "Muse Glimmer"
+                }
+            }
+        }
     }
 }

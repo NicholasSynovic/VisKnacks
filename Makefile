@@ -1,4 +1,4 @@
-.PHONY: build create-dev
+.PHONY: build create-dev install
 
 build:
 	# Build OpenCode release
@@ -10,3 +10,6 @@ build:
 
 create-dev:
 	conda env create --file environment.yaml --name VisKnacks
+
+install:
+	uv pip install dist/*.tar.gz
