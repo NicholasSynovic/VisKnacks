@@ -132,7 +132,8 @@ python -m pvpython_renderer.main --server localhost --port 8080
 ```
 
 `--server` (default `localhost`) sets the bind hostname for the streamable-http
-transport. `--port` (default `8080`) sets the bind port. The MCP endpoint is
+transport. `--port` (default `8080`) sets the bind port. `--version` prints the
+installed package version and exits. The MCP endpoint is
 served at `http://<server>:<port>/mcp` — with the defaults above,
 `http://localhost:8080/mcp`.
 

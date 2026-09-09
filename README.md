@@ -134,16 +134,16 @@ pre-commit run --all-files
 
 ## Repository Layout
 
-| Path                     | Description                                                                             |
-| ------------------------ | --------------------------------------------------------------------------------------- |
-| `agents/`                | The `paraview-prompt-formatter` OpenCode subagent                                       |
-| `skills/paraview-coder/` | The `paraview-coder` Agent Skill (`SKILL.md` + six `references/*.md` snippet catalogs)  |
-| `mcp/pvpython-renderer/` | FastMCP server exposing the `execute_code` headless-rendering tool                      |
-| `mcp/pvpython-rag/`      | FastMCP server exposing the `query` RAG-retrieval tool, plus its index-building scripts |
-| `build-scripts/`         | Assembles the OpenCode distributable into `build/.opencode/`                            |
-| `benchmark/`             | SciVisAgentBench evaluation harness (`benchmark.bash`, `metrics.py`)                    |
-| `environment.yaml`       | Conda environment specification (Python 3.10, ParaView 5.13.3)                          |
-| `Makefile`               | `make create-dev` and `make build`                                                      |
+| Path                     | Description                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| `agents/`                | The `paraview-prompt-formatter` OpenCode subagent                                        |
+| `skills/paraview-coder/` | The `paraview-coder` Agent Skill (`SKILL.md` + six `references/*.md` snippet catalogs)   |
+| `mcp/pvpython-renderer/` | FastMCP server exposing the `execute_code` headless-rendering tool                       |
+| `mcp/pvpython-rag/`      | FastMCP server exposing the `query` RAG-retrieval tool, plus its index-building scripts  |
+| `build-scripts/`         | Assembles the OpenCode distributable into `build/.opencode/`                             |
+| `benchmark/`             | SciVisAgentBench evaluation harness (`benchmark.bash`, `run_metrics.bash`, `metrics.py`) |
+| `environment.yaml`       | Conda environment specification (Python 3.10, ParaView 5.13.3)                           |
+| `Makefile`               | `make create-dev` and `make build`                                                       |
 
 ## License
 
