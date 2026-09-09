@@ -114,25 +114,26 @@ make install
 
 ## How to Run
 
-> [!WARNING]
-> Both packaged entrypoints are currently broken. The `pvpython-renderer-mcp`
-> console script points at `pvpython_renderer.main:main`, a module that no
-> longer exists, and `python -m pvpython_renderer.mcp.main` crashes with
-> `PackageNotFoundError` when the package is not installed as a distribution —
-> and registers no tools even when it is. Start the server through the
-> `pv_mcp` engine instead.
+Activate the conda environment and start the server. The console script is
+installed by `make install` (from the repository root):
 
-Activate the conda environment, then start the server from this directory:
+```bash
+conda activate VisKnacks
+pvpython-renderer-mcp --server localhost --port 8080
+```
+
+For an install-free run during development, start the same server as a module
+from this directory:
 
 ```bash
 cd mcp/pvpython-renderer
 conda activate VisKnacks
-python -c "from pvpython_renderer.pv_mcp import run; run('localhost', 8080)"
+python -m pvpython_renderer.main --server localhost --port 8080
 ```
 
-`run()` accepts the bind hostname and port as arguments
-(`run(mcp_server, mcp_port)`, defaulting to `localhost` and `8080`). The MCP
-endpoint is served at `http://<server>:<port>/mcp` — with the defaults above,
+`--server` (default `localhost`) sets the bind hostname for the streamable-http
+transport. `--port` (default `8080`) sets the bind port. The MCP endpoint is
+served at `http://<server>:<port>/mcp` — with the defaults above,
 `http://localhost:8080/mcp`.
 
 Both `pvpython` and `pvserver` must be on `PATH` at call time; activating the

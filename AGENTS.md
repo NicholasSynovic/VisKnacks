@@ -14,9 +14,9 @@ markdown prompts plus two MCP servers:
   leftover `'var0'` array name, volume transfer-function quartets,
   `InsideOut` unreliable, `LowerThreshold`/`UpperThreshold` on 5.10+). Do not
   trim it for brevity.
-- `mcp/pvpython-renderer/` — FastMCP server, one tool `execute_code`. Its
-  `README.md` is detailed but its env/run instructions are stale (see
-  "Stale docs"); the `pv_mcp.py` module docstring is the source of truth.
+- `mcp/pvpython-renderer/` — FastMCP server, one tool `execute_code`. The
+  `README.md` is accurate; the `pv_mcp.py` module docstring remains the
+  source of truth for internals.
 - `mcp/pvpython-rag/` — FastMCP server, one tool `query`, over FAISS indexes of
   the ParaView Python API. WIP. `README.md` is empty; use module docstrings.
 - `build-scripts/` — assembles the distributable into `build/`.
@@ -50,11 +50,8 @@ Commit `a3ac0ba` consolidated the per-subproject envs into the root one and
 deleted supporting files. The following referenced commands/paths **no longer
 exist**; ignore them when the docs mention them:
 
-- `mcp/pvpython-renderer/README.md`: `make create-dev`, `make build`,
-  `uv build` from that directory, and the `pvpython_renderer` conda env. There
-  is no `mcp/pvpython-renderer/Makefile`. Its run command
-  (`pvpython-renderer-mcp ...`) is also broken — see "Broken console scripts"
-  under Build.
+- `mcp/pvpython-renderer/README.md` was rewritten against the single-env
+  layout (commit `a3ac0ba` follow-up); its build/run instructions are current.
 - `mcp/pvpython-rag/`: no `Makefile`, no `environment.yaml`. The
   `make clone-paraview` (in `scripts/build_all_indexes.sh`) and
   `make download-benchmark` (in `benchmark/benchmark.bash`) targets do not
@@ -117,12 +114,9 @@ the packages are only ever installed into the `VisKnacks` conda env, which
 already contains all runtime deps (`fastmcp`, `mcp`, `httpx`, etc.) via
 `environment.yaml`. The wheels are not meant for standalone pip installation.
 
-**Both** console scripts are broken — run the servers as modules instead:
+The `pvpython-rag-mcp` console script is broken; the renderer's console script
+works after `make install`:
 
-- `pvpython-renderer-mcp = "pvpython_renderer.main:main"` points at a module
-  that no longer exists (the code was refactored into
-  `pvpython_renderer/mcp/`); the real entrypoint is
-  `pvpython_renderer.mcp.main:main`.
 - `pvpython-rag-mcp = "pvpython_rag.main:main"` points at the index _builder_,
   which has no `main()`. The server entrypoint is
   `pvpython_rag.rag_mcp:main`.
@@ -154,13 +148,13 @@ pre-commit run --all-files
 Both are stateless, streamable-http, single-tool. Ports differ deliberately
 (the renderer defaults to 8080, the RAG server to 8081).
 
-The packages are not installed into the `VisKnacks` env by default, and both
-console scripts are broken anyway — run each server as a module from its own
-package directory:
+The packages are not installed into the `VisKnacks` env by default, so run the
+RAG server as a module from its own package directory; the renderer can also
+run install-free as a module:
 
 ```bash
-# from mcp/pvpython-renderer/
-python -m pvpython_renderer.mcp.main --server localhost --port 8080
+# from mcp/pvpython-renderer/ (install-free), or `pvpython-renderer-mcp` after `make install`
+python -m pvpython_renderer.main --server localhost --port 8080
 # from mcp/pvpython-rag/
 python -m pvpython_rag.rag_mcp --host localhost --port 8081 \
     --directory data/paraview-vector-db

@@ -8,9 +8,9 @@ __prog__: str = "pvpython-renderer-mcp"
 
 
 def _package_version() -> str:
-    """Return the installed ``pvpython-renderer-mcp`` version, or 'unknown'."""
+    """Return the installed ``pvpython-renderer`` version, or 'unknown'."""
     try:
-        return version(__prog__)
+        return version("pvpython-renderer")
     except PackageNotFoundError:  # pragma: no cover - not installed as a dist
         return "unknown"
 
