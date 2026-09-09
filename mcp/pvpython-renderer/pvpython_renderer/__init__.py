@@ -4,6 +4,8 @@ from importlib.metadata import PackageNotFoundError, version
 # ``paraview.simple``. Only ``pv_runner.py``, executed as a subprocess under
 # ``pvpython``, imports ParaView at runtime.
 
+__prog__: str = "pvpython-renderer-mcp"
+
 
 def _package_version() -> str:
     """Return the installed ``pvpython-renderer-mcp`` version, or 'unknown'."""
@@ -13,6 +15,5 @@ def _package_version() -> str:
         return "unknown"
 
 
-__prog__: str = "pvpython-renderer-mcp"
 __doi__: str = "10.48550/arXiv.2505.07064"
 __version__: str = _package_version()

@@ -101,13 +101,12 @@ module-root = ""
 Without it `uv_build` looks for `src/<module>/__init__.py` and the build fails.
 
 Wheel metadata is **not** inherited from the root. uv workspaces share a
-lockfile and resolution environment only — never `[project]` fields. Both member
-`pyproject.toml`s currently declare `dependencies = []`, so the wheels ship with
-no `Requires-Dist` and no `Requires-Python`; installing one into a clean env
-gives an `ImportError` on `mcp`/`fastmcp` at runtime. Real deps
-(`fastmcp>=2.9.2`, `httpx==0.28.1`, `mcp[cli]==1.9.4` for the renderer) live in
-git history at `HEAD:mcp/pvpython-renderer/pyproject.toml`. Restore them in the
-member, not the root.
+lockfile and resolution environment only — never `[project]` fields.
+
+Both member `pyproject.toml`s declare `dependencies = []`. This is intentional:
+the packages are only ever installed into the `VisKnacks` conda env, which
+already contains all runtime deps (`fastmcp`, `mcp`, `httpx`, etc.) via
+`environment.yaml`. The wheels are not meant for standalone pip installation.
 
 Broken console script: `pvpython-rag-mcp = "pvpython_rag.main:main"` points at
 the index _builder_, which has no `main()`. The server entrypoint is

@@ -225,3 +225,5 @@ benchmark/results/
 
 # Apptainer / Singularity images (multi-GB build artifacts)
 *.sif
+
+NOTES

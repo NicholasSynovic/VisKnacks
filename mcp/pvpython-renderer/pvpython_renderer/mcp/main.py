@@ -1,15 +1,11 @@
-"""
-LLM prompt constants for the ParaView MCP server.
+from argparse import Namespace
 
-This module holds the ``default_prompt`` behavioral contract sent to the LLM as
-the FastMCP server ``instructions``. It is intentionally ParaView-free:
-importing it does not pull in ``paraview.simple``. Edit ``default_prompt``
-deliberately -- it changes model behavior.
-"""
+from fastmcp import FastMCP
 
-# Default prompt that instructs the LLM how to interact with ParaView. This is
-# a behavioral contract sent to the model; edit deliberately.
-default_prompt = """
+from pvpython_renderer.mcp import __prog__
+from pvpython_renderer.mcp.cli import cli_parser
+
+MCP_INSTRUCTIONS: str = """
 When using ParaView through this interface, please follow these guidelines:
 
 1.  IMPORTANT: Only call the ParaView functions that are strictly necessary per
@@ -26,3 +22,18 @@ When using ParaView through this interface, please follow these guidelines:
 3.  ParaView is connected to the MCP server on startup, so there is no need to
     connect first.
 """
+
+MCP: FastMCP = FastMCP(name=__prog__, instructions=MCP_INSTRUCTIONS)
+
+
+def run_mcp_service(server: str, port: int) -> None:
+    MCP.run(transport="http", host=server, port=port)
+
+
+def main() -> None:
+    args: Namespace = cli_parser()
+    run_mcp_service(server=args.server, port=args.port)
+
+
+if __name__ == "__main__":
+    main()
