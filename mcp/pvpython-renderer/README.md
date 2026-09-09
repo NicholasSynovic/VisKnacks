@@ -16,21 +16,6 @@ Reference](#mcp-tool-reference) • [Troubleshooting](#troubleshooting)
 
 </div>
 
-## Table of Contents
-
-- [pvpython-renderer](#pvpython-renderer)
-  - [About](#about)
-  - [Table of Contents](#table-of-contents)
-  - [Application Overview](#application-overview)
-  - [How to Build](#how-to-build)
-    - [Development environment](#development-environment)
-    - [Wheel](#wheel)
-  - [How to Run](#how-to-run)
-  - [MCP Tool Reference](#mcp-tool-reference)
-    - [`execute_code`](#execute_code)
-  - [Resources](#resources)
-  - [Troubleshooting](#troubleshooting)
-
 ## About
 
 ParaView is an open-source platform for large-scale scientific visualization
