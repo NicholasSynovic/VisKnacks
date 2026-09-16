@@ -14,6 +14,8 @@
 Started](#getting-started) • [Usage](#usage) • [Benchmarking](#benchmarking) •
 [Repository Layout](#repository-layout) • [License](#license)
 
+![VisKnacks mascot](docs/hero.jpeg)
+
 </div>
 
 ## About
