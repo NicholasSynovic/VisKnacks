@@ -18,9 +18,13 @@ markdown prompts plus two MCP servers:
   `README.md` is accurate; the `pv_mcp.py` module docstring remains the
   source of truth for internals.
 - `mcp/pvpython-rag/` — FastMCP server, one tool `query`, over FAISS indexes of
-  the ParaView Python API. WIP. `README.md` is empty; use module docstrings.
+  the ParaView Python API. WIP. The `README.md` (index building, run commands,
+  `query` tool) is current; module docstrings remain the source of truth for
+  internals.
 - `build-scripts/` — assembles the distributable into `build/`.
-- `benchmark/` — SciVisAgentBench harness. Scripts tracked; `benchmark/data/`,
+- `benchmark/` — SciVisAgentBench harness: a local matrix runner
+  (`benchmark.bash`) and a one-shot ALCF PBS job
+  (`benchmark_visknacks_ollama.bash`). Scripts tracked; `benchmark/data/`,
   `benchmark/results/`, and `benchmark/.opencode/` are gitignored.
 
 Editing agent/skill behavior means editing markdown, not Python.
@@ -114,12 +118,11 @@ the packages are only ever installed into the `VisKnacks` conda env, which
 already contains all runtime deps (`fastmcp`, `mcp`, `httpx`, etc.) via
 `environment.yaml`. The wheels are not meant for standalone pip installation.
 
-The `pvpython-rag-mcp` console script is broken; the renderer's console script
-works after `make install`:
-
-- `pvpython-rag-mcp = "pvpython_rag.main:main"` points at the index _builder_,
-  which has no `main()`. The server entrypoint is
-  `pvpython_rag.rag_mcp:main`.
+Both console scripts (`pvpython-renderer-mcp`, `pvpython-rag-mcp`) work after
+`make install`. `pvpython-rag-mcp` used to point at the index builder
+(`pvpython_rag.main:main`) and was fixed to `pvpython_rag.rag_mcp:main`
+(commit `dfb0e9c`) — an older installed copy may still be broken, so re-run
+`make build && make install` if `--help` misbehaves.
 
 ## Lint / format / test
 
@@ -209,10 +212,23 @@ file in sync with `build-scripts/opencode.json.template`.
 - `benchmark/metrics.py` imports `imageio` and `skimage`, neither of which is
   listed in `environment.yaml`. A freshly created env cannot run it — install
   `imageio` and `scikit-image` manually.
-- `benchmark_visknacks_ollama.bash` is a **PBS job script for ALCF**
-  (`qsub -v OLLAMA_MODEL=<model> ...`), not runnable locally. WIP: the prompt
-  is hardcoded and the MCP-server startup sections are empty. It requires the
-  MCP console scripts, `pvpython`, `opencode`, and `ollama` on `PATH` inside
-  the job, and refuses to pull models — the model must already exist in
-  `/eagle/EVITA/ollama-models`. Note it checks for `pvpython-rag-mcp`, which
-  is currently broken (see "Broken console scripts").
+- `benchmark_visknacks_ollama.bash` is the **one-shot ALCF PBS job** (`qsub`,
+  not runnable locally) that folds the whole harness into a single
+  submission: it starts both MCP servers and `ollama serve` in-job on
+  **dynamic ports**, rewrites `benchmark/.opencode/opencode.json` in place
+  (atomic tmp+rename) with those ports, and **fails fast if `OLLAMA_MODEL`
+  is not in that config's `provider.ollama.models` allowlist** — adding a
+  model means editing that file on Eagle, the script never injects it. Knobs
+  via `qsub -v`: `OLLAMA_MODEL`, `PVPYTHON_DATA` (RAG index dir; checked for
+  `index_v5.13.3.faiss` + `metadata_v5.13.3.json`), `NUM_TASKS=n|all`,
+  `FORCE=1`, `TASK_TIMEOUT=<sec>` (default 3600, `0` disables). It exports
+  `OLLAMA_KEEP_ALIVE=24h` and warms the model with one generate call before
+  the matrix; the model must already exist in `/eagle/EVITA/ollama-models`
+  (the job never pulls). Results land in
+  `<RUN_DIR>/results/<model>/<task>/<task>.png` (run_metrics-compatible) and
+  the whole `RUN_DIR` is tar-gzipped to
+  `~/visknacks-ollama-<model>-<jobid>.tar.gz` both at the end and from the
+  EXIT/TERM trap, so a walltime kill still archives. Staging prerequisites:
+  `benchmark/data/` + `benchmark/.opencode/` (incl. `node_modules`) on Eagle,
+  console scripts installed via `make install`, and `opencode`/`ollama`/
+  `pvpython` on `PATH` inside the job.

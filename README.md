@@ -11,8 +11,8 @@
 ![ParaView](https://img.shields.io/badge/ParaView-5.13.3-8A2BE2?style=flat-square)
 
 [About](#about) • [System Overview](#system-overview) • [Getting
-Started](#getting-started) • [Usage](#usage) • [Repository
-Layout](#repository-layout) • [License](#license)
+Started](#getting-started) • [Usage](#usage) • [Benchmarking](#benchmarking) •
+[Repository Layout](#repository-layout) • [License](#license)
 
 </div>
 
@@ -132,18 +132,93 @@ There is no test suite or CI; all quality gates run through pre-commit:
 pre-commit run --all-files
 ```
 
+## Benchmarking
+
+VisKnacks is evaluated on the ParaView tasks of the SciVisAgentBench
+benchmark. Tasks live in gitignored `benchmark/data/<task>/` directories, each
+with a `task_description.txt`; both harnesses run the `paraview-coder` agent
+through `opencode` and write `results/<model>/<task>/` containing the rendered
+`<task>.png` (plus the generated `<task>.py` script, an optional `<task>.pvsm`
+state, and a `run.log`). The results layout is shared by the harnesses and by
+the scoring script described below.
+
+### Local matrix runner
+
+[`benchmark/benchmark.bash`](benchmark/benchmark.bash) runs
+`opencode run --agent build --auto` for every model in its `MODELS` list
+against every task, `cd`-ing into `benchmark/` so the gitignored
+`benchmark/.opencode/` config (agent, skill, MCP endpoints, ollama provider)
+is picked up. It requires the two MCP services running on 8080/8081 and
+`opencode` on `PATH`:
+
+```bash
+cd benchmark
+NUM_TASKS=5 ./benchmark.bash   # first 5 tasks (default: all)
+FORCE=1 ./benchmark.bash       # re-run tasks whose image already exists
+```
+
+> [!WARNING]
+> After each model the script tars the results and moves the tarball to
+> `~/Desktop/MODEL.tar` — a fixed filename, so every model overwrites the
+> previous tarball — and then clears `benchmark/results/`.
+
+### Scoring
+
+[`run_metrics.bash`](benchmark/run_metrics.bash) scores every
+`results/<model>/<task>/<task>.png` against the ground-truth image
+`data/<task>/GS/<task>_gs.png` and writes a `metrics.json` next to each image.
+The `GS/` directories are not shipped with the task data, and `metrics.py`
+needs `imageio` and `scikit-image`, which are not part of `environment.yaml` —
+install them into the conda environment first:
+
+```bash
+pip install imageio scikit-image
+cd benchmark
+./run_metrics.bash
+```
+
+### One-shot ALCF job
+
+[`benchmark/benchmark_visknacks_ollama.bash`](benchmark/benchmark_visknacks_ollama.bash)
+runs the same matrix against a single local Ollama model inside one PBS
+submission on ALCF. The job starts both MCP services and `ollama serve` on
+dynamic ports, rewrites the opencode config with those ports, verifies the
+model is allowlisted, warms the model into memory, runs the task loop, and
+compresses the whole run directory into
+`~/visknacks-ollama-<model>-<jobid>.tar.gz` (also on walltime kill):
+
+```bash
+qsub -v OLLAMA_MODEL=<model>,PVPYTHON_DATA=<index-dir> \
+     [,NUM_TASKS=<n|all>][,FORCE=1][,TASK_TIMEOUT=<seconds>] \
+     benchmark/benchmark_visknacks_ollama.bash
+```
+
+| Variable        | Required | Default | Description                                                                                                                                                                      |
+| --------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OLLAMA_MODEL`  | yes      | —       | Model to benchmark; must already exist in `/eagle/EVITA/ollama-models` (the job never pulls) and be listed under `provider.ollama.models` in `benchmark/.opencode/opencode.json` |
+| `PVPYTHON_DATA` | yes      | —       | Directory holding the prebuilt RAG indexes (`index_v5.13.3.faiss`, `metadata_v5.13.3.json`)                                                                                      |
+| `NUM_TASKS`     | no       | `all`   | Number of tasks to run (`0` also runs every task)                                                                                                                                |
+| `FORCE`         | no       | `0`     | `1` re-runs tasks whose output image already exists                                                                                                                              |
+| `TASK_TIMEOUT`  | no       | `3600`  | Per-task `opencode` timeout in seconds (`0` disables)                                                                                                                            |
+
+Staging prerequisites for the submit directory on Eagle: the repository
+checkout with `benchmark/data/` and `benchmark/.opencode/` (including its
+`node_modules`) in place, the console scripts installed via `make install`,
+and `opencode`, `ollama`, and `pvpython` on `PATH` inside the job
+environment.
+
 ## Repository Layout
 
-| Path                     | Description                                                                              |
-| ------------------------ | ---------------------------------------------------------------------------------------- |
-| `agents/`                | The `paraview-prompt-formatter` OpenCode subagent                                        |
-| `skills/paraview-coder/` | The `paraview-coder` Agent Skill (`SKILL.md` + six `references/*.md` snippet catalogs)   |
-| `mcp/pvpython-renderer/` | FastMCP server exposing the `execute_code` headless-rendering tool                       |
-| `mcp/pvpython-rag/`      | FastMCP server exposing the `query` RAG-retrieval tool, plus its index-building scripts  |
-| `build-scripts/`         | Assembles the OpenCode distributable into `build/.opencode/`                             |
-| `benchmark/`             | SciVisAgentBench evaluation harness (`benchmark.bash`, `run_metrics.bash`, `metrics.py`) |
-| `environment.yaml`       | Conda environment specification (Python 3.10, ParaView 5.13.3)                           |
-| `Makefile`               | `make create-dev` and `make build`                                                       |
+| Path                     | Description                                                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `agents/`                | The `paraview-prompt-formatter` OpenCode subagent                                                                           |
+| `skills/paraview-coder/` | The `paraview-coder` Agent Skill (`SKILL.md` + six `references/*.md` snippet catalogs)                                      |
+| `mcp/pvpython-renderer/` | FastMCP server exposing the `execute_code` headless-rendering tool                                                          |
+| `mcp/pvpython-rag/`      | FastMCP server exposing the `query` RAG-retrieval tool, plus its index-building scripts                                     |
+| `build-scripts/`         | Assembles the OpenCode distributable into `build/.opencode/`                                                                |
+| `benchmark/`             | SciVisAgentBench evaluation harness (`benchmark.bash`, `benchmark_visknacks_ollama.bash`, `run_metrics.bash`, `metrics.py`) |
+| `environment.yaml`       | Conda environment specification (Python 3.10, ParaView 5.13.3)                                                              |
+| `Makefile`               | `make create-dev` and `make build`                                                                                          |
 
 ## License
 

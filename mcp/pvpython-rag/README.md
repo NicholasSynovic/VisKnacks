@@ -109,9 +109,9 @@ containerized, pass `--host 0.0.0.0` to be reachable from outside the
 container's network namespace.
 
 > [!NOTE]
-> The `pvpython-rag-mcp` console script declared in `pyproject.toml` points at
-> the index builder, which has no `main()` — run the server as a module as
-> shown above.
+> The `pvpython-rag-mcp` console script (installed by `make install`) runs
+> this server; the module invocation above is equivalent and needs no
+> installation.
 
 A missing or inconsistent index/metadata pair for `--pv-version` (default
 `5.13.3`) fails fast at startup before the server binds.
