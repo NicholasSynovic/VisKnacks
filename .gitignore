@@ -227,3 +227,4 @@ benchmark/results/
 *.sif
 
 NOTES
+!mcp/pvpython-rag/data/pv.zip

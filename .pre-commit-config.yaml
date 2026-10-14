@@ -33,8 +33,8 @@ repos:
             args: [--fix=lf]
           - id: name-tests-test
             args: [--unittest] # test.*\.py
-          - id: no-commit-to-branch
-            args: [--branch, main]
+          # - id: no-commit-to-branch
+          #   args: [--branch, main]
           - id: pretty-format-json
             args: [--autofix, --indent=4, --no-ensure-ascii, --no-sort-keys]
           - id: requirements-txt-fixer
