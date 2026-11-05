@@ -8,7 +8,7 @@
 #
 # Defaults:
 #   Ollama: http://127.0.0.1:11434
-#   Model:  qwen3:0.6b
+#   Model:  qwen3.5:0.8b
 #   Budget: 30 seconds for the entire integration worker
 #
 # Dependencies:
@@ -69,7 +69,7 @@ optparse.define short=u long=ollama-url \
     desc="Ollama server root URL, without /v1"
 
 optparse.define short=m long=model \
-    variable=model default=qwen3:0.6b \
+    variable=model default=qwen3.5:0.8b \
     desc="Exact installed Ollama model name"
 
 optparse.define short=t long=timeout \

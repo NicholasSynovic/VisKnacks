@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#
 # Explicit OpenCode subagent integration test.
 #
 # Dispatch is configuration-driven, not model-selected:
@@ -15,7 +14,7 @@
 #
 # Defaults:
 #   Ollama: http://127.0.0.1:11434
-#   Model:  qwen3:0.6b
+#   Model:  qwen3.5:0.8b
 #   Overall worker deadline: 30 seconds
 #
 # Exit codes:
@@ -73,90 +72,7 @@ optparse.define short=u long=ollama-url \
     desc="Direct Ollama server root URL"
 
 optparse.define short=m long=model \
-    variable=model default=qwen3:0.6b \
-    desc="Installed Ollama model"
-
-optparse.define short=t long=timeout \
-    variable=timeout_seconds default=30 \
-    desc="Overall worker deadline in seconds"
-
-optparse.define short=b long=binary \
-    variable=o#!/usr/bin/env bash
-#
-# Explicit OpenCode subagent integration test.
-#
-# Dispatch is configuration-driven, not model-selected:
-#   custom command -> subtask:true -> integration-child
-#
-# Assumptions:
-#   - Earlier tests verified OpenCode and Ollama availability.
-#   - The selected Ollama model is already installed.
-#
-# Dependencies:
-#   Linux, Bash 4+, GNU timeout, GNU sed, curl, jq, setsid,
-#   OpenCode, and the supplied optparse.bash.
-#
-# Defaults:
-#   Ollama: http://127.0.0.1:11434
-#   Model:  qwen3:0.6b
-#   Overall worker deadline: 30 seconds
-#
-# Exit codes:
-#   0   = passed
-#   1   = integration failure
-#   2   = invalid setup
-#   124 = deadline exceeded
-#
-# optparse.bash itself exits 1 for parsing errors.
-
-set -eo pipefail
-
-setup_error() {
-    printf 'ERROR: %s\n' "$*" >&2
-    exit 2
-}
-
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-PARSER="$SCRIPT_DIR/optparse.bash"
-
-parser_file=""
-sandbox=""
-keep_artifacts=false
-
-cleanup() {
-    local status=$?
-    trap - EXIT
-    set +e
-
-    [[ -z "$parser_file" ]] || rm -f -- "$parser_file"
-
-    if [[ -n "$sandbox" ]]; then
-        if [[ "$keep_artifacts" == true ]]; then
-            printf 'INFO: Artifacts retained at %s\n' "$sandbox" >&2
-        elif ! rm -rf -- "$sandbox"; then
-            printf 'WARN: Could not fully remove %s\n' "$sandbox" >&2
-        fi
-    fi
-
-    exit "$status"
-}
-
-trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
-
-[[ -r "$PARSER" ]] ||
-    setup_error "Cannot read parser: $PARSER"
-
-# Enable nounset only after running the supplied parser.
-source "$PARSER"
-
-optparse.define short=u long=ollama-url \
-    variable=ollama_url default=http://127.0.0.1:11434 \
-    desc="Direct Ollama server root URL"
-
-optparse.define short=m long=model \
-    variable=model default=qwen3:0.6b \
+    variable=model default=qwen3.5:0.8b \
     desc="Installed Ollama model"
 
 optparse.define short=t long=timeout \
