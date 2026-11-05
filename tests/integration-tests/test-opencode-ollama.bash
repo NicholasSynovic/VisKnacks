@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Standalone OpenCode <-> Ollama integration test.
+# OpenCode <-> Ollama integration test.
 #
 # Assumptions:
 #   - Earlier tests verified OpenCode and Ollama availability.
@@ -8,16 +8,16 @@
 #
 # Defaults:
 #   Ollama: http://127.0.0.1:11434
-#   Model:  qwen3:0.6b
-#   Budget: 30 seconds for the entire integration worker
-#   Retries: 1 extra attempt for transient model flakes (0-3)
+#   Model:  qwen3.5:0.8b
+#   Overall deadline: 30 seconds across ALL attempts
+#   Retries: 1 extra attempt, only for empty assistant responses
 #
-# Retry behavior:
-#   An attempt that fails with exit 1 (transient model behavior such as
-#   an empty assistant response) is retried up to --retries times with a
-#   fresh sandbox. Setup errors (2), deadline expiry (124/137), and
-#   signals (130/143) are never retried. Worst-case wall time is
-#   (1 + retries) x budget seconds.
+# Each attempt gets fresh OpenCode configuration and state.
+# Ollama itself is shared and is not restarted or reset.
+#
+# Pass condition:
+#   Valid completion events and nonempty assistant text containing
+#   the complete run-specific marker, ignoring letter case.
 #
 # Dependencies:
 #   Linux, Bash 4+, GNU timeout, GNU sed, curl, jq,
@@ -28,6 +28,9 @@
 #   1   = integration failed
 #   2   = invalid setup or missing dependency
 #   124 = overall deadline exceeded
+#
+# Internal worker status:
+#   75 = empty assistant response; eligible for retry
 #
 # optparse.bash itself exits 1 for parsing errors.
 
@@ -41,26 +44,23 @@ setup_error() {
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PARSER="$SCRIPT_DIR/optparse.bash"
 
-[[ -r "$PARSER" ]] || setup_error "Cannot read parser: $PARSER"
-
 parser_file=""
+test_root=""
 keep_artifacts=false
-sandboxes=()
 
 cleanup() {
     local status=$?
-    local path
     trap - EXIT
+    set +e
 
     [[ -z "$parser_file" ]] || rm -f -- "$parser_file"
 
-    if ((${#sandboxes[@]} > 0)); then
+    if [[ -n "$test_root" ]]; then
         if [[ "$keep_artifacts" == true ]]; then
-            for path in "${sandboxes[@]}"; do
-                printf 'INFO: Test artifacts retained at %s\n' "$path" >&2
-            done
-        else
-            rm -rf -- "${sandboxes[@]}"
+            printf 'INFO: All attempt artifacts retained at %s\n' \
+                "$test_root" >&2
+        elif ! rm -rf -- "$test_root"; then
+            printf 'WARN: Could not fully remove %s\n' "$test_root" >&2
         fi
     fi
 
@@ -71,8 +71,10 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# The supplied parser references variables that may be unset,
-# so enable nounset only after parsing.
+[[ -r "$PARSER" ]] ||
+    setup_error "Cannot read parser: $PARSER"
+
+# Enable nounset only after running the supplied parser.
 source "$PARSER"
 
 optparse.define short=u long=ollama-url \
@@ -80,12 +82,12 @@ optparse.define short=u long=ollama-url \
     desc="Ollama server root URL, without /v1"
 
 optparse.define short=m long=model \
-    variable=model default=qwen3:0.6b \
+    variable=model default=qwen3.5:0.8b \
     desc="Exact installed Ollama model name"
 
 optparse.define short=t long=timeout \
     variable=timeout_seconds default=30 \
-    desc="Overall integration deadline in seconds"
+    desc="Overall deadline across all attempts in seconds"
 
 optparse.define short=b long=binary \
     variable=opencode_binary default=opencode \
@@ -93,11 +95,11 @@ optparse.define short=b long=binary \
 
 optparse.define short=k long=keep-artifacts \
     variable=keep_artifacts value=true \
-    desc="Keep temporary configuration and logs"
+    desc="Keep configuration and logs for every attempt"
 
 optparse.define short=r long=retries \
     variable=retries default=1 \
-    desc="Extra attempts after an integration failure (0-3)"
+    desc="Extra attempts for empty assistant responses (0-3)"
 
 parser_file="$(optparse.build)"
 [[ -r "$parser_file" ]] ||
@@ -129,15 +131,11 @@ timeout_seconds=$((10#$timeout_seconds))
 ((timeout_seconds >= 1 && timeout_seconds <= 86400)) ||
     setup_error "Timeout must be between 1 and 86400 seconds"
 
-[[ "$retries" =~ ^[0-9]$ ]] ||
+[[ "$retries" =~ ^[0-3]$ ]] ||
     setup_error "Retries must be an integer between 0 and 3"
 
 retries=$((10#$retries))
-((retries <= 3)) ||
-    setup_error "Retries must be between 0 and 3"
 
-# Accept a direct server origin only: no authentication, path,
-# query parameters, or fragment. Bracketed IPv6 is supported.
 while [[ "$ollama_url" == */ ]]; do
     ollama_url="${ollama_url%/}"
 done
@@ -146,17 +144,16 @@ url_pattern='^https?://(\[[0-9A-Fa-f:.%]+\]|[A-Za-z0-9._-]+)(:[0-9]{1,5})?$'
 
 [[ "$ollama_url" =~ $url_pattern ]] ||
     setup_error \
-        "Use a server root such as http://127.0.0.1:11434; no auth or paths"
+        "Use a direct server root URL without authentication or paths"
 
 [[ "$model" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]] ||
     setup_error "Invalid model name"
 
-# Refuse managed configuration rather than silently merging it.
 [[ ! -e /etc/opencode ]] ||
     setup_error \
-        "/etc/opencode exists; use an environment without managed configuration"
+        "/etc/opencode exists; use an environment without managed config"
 
-# Resolve the executable, but do not repeat the earlier runtime/version test.
+# Resolve the executable without repeating the earlier runtime/version test.
 opencode_path="$(type -P -- "$opencode_binary" || true)"
 
 [[ -n "$opencode_path" && -f "$opencode_path" && -x "$opencode_path" ]] ||
@@ -166,9 +163,24 @@ if [[ "$opencode_path" != /* ]]; then
     opencode_path="$PWD/$opencode_path"
 fi
 
+test_root="$(mktemp -d /tmp/opencode-ollama-test.XXXXXXXX)"
+
+print_diagnostics() {
+    local sandbox="$1"
+    local log
+
+    for log in run.stderr events.jsonl response.txt; do
+        if [[ -s "$sandbox/$log" ]]; then
+            printf '\n--- %s: %s (last 40 lines) ---\n' \
+                "${sandbox##*/}" "$log" >&2
+
+            tail -n 40 -- "$sandbox/$log" >&2
+        fi
+    done
+}
+
 integration_worker() {
     set -euo pipefail
-    SECONDS=0
 
     local opencode_path="$1"
     local ollama_url="$2"
@@ -184,6 +196,7 @@ integration_worker() {
     local prompt=""
     local reply=""
     local finish_reason=""
+    local completion_summary=""
     local status=0
 
     fail() {
@@ -194,7 +207,7 @@ integration_worker() {
     start_stage() {
         stage="$1"
         printf '%s\n' "$stage" > "$sandbox/stage"
-        printf 'INFO: [%ss] %s\n' "$SECONDS" "$stage"
+        printf 'INFO: [%ss overall] %s\n' "$SECONDS" "$stage"
     }
 
     mkdir -p \
@@ -205,7 +218,6 @@ integration_worker() {
         "$sandbox/state" \
         "$sandbox/work"
 
-    # Only explicitly listed variables reach OpenCode.
     local -a opencode_env=(
         env -i
         "PATH=$PATH"
@@ -238,8 +250,6 @@ integration_worker() {
         exec "${opencode_env[@]}" "$opencode_path" "$@" </dev/null
     )
 
-    # Make a direct JSON API request without curl configuration,
-    # proxy routing, or redirects.
     request_json() {
         local method="$1"
         local path="$2"
@@ -280,7 +290,7 @@ integration_worker() {
 
     start_stage "Generate isolated configuration"
 
-    jq -n \
+    if ! jq -n \
         --arg provider "$provider" \
         --arg model "$model" \
         --arg selected "$selected_model" \
@@ -297,8 +307,12 @@ integration_worker() {
             plugin: [],
             mcp: {},
             instructions: [],
-            permission: {"*": "deny"},
-            compaction: {auto: false},
+            permission: {
+                "*": "deny"
+            },
+            compaction: {
+                auto: false
+            },
             provider: {
                 ($provider): {
                     npm: "@ai-sdk/openai-compatible",
@@ -310,6 +324,9 @@ integration_worker() {
                     models: {
                         ($model): {
                             name: $model,
+                            options: {
+                                reasoningEffort: "none"
+                            },
                             limit: {
                                 context: 8192,
                                 output: 128
@@ -324,17 +341,49 @@ integration_worker() {
                     mode: "primary",
                     model: $selected,
                     temperature: 0,
-                    steps: 1,
                     prompt: (
                         "You are a text-only connectivity test. " +
                         "Follow the user instruction directly. " +
                         "Do not use tools. Do not explain your answer."
                     ),
-                    tools: {"*": false},
-                    permission: {"*": "deny"}
+                    tools: {
+                        "*": false
+                    },
+                    permission: {
+                        "*": "deny"
+                    }
                 }
             }
-        }' > "$sandbox/opencode.json"
+        }' > "$sandbox/opencode.json"; then
+
+        fail "Could not generate OpenCode configuration"
+    fi
+
+    # Validate generated settings, including absence of the step limit.
+    if ! jq -e \
+        --arg provider "$provider" \
+        --arg model "$model" \
+        --arg selected "$selected_model" \
+        --arg base_url "$ollama_url/v1" \
+        '
+            .model == $selected
+            and .small_model == $selected
+            and .provider[$provider].options.baseURL == $base_url
+            and (
+                .provider[$provider].models[$model].options.reasoningEffort
+                == "none"
+            )
+            and .provider[$provider].models[$model].limit.context == 8192
+            and .provider[$provider].models[$model].limit.output == 128
+            and (
+                .agent["integration-test"]
+                | has("steps")
+                | not
+            )
+        ' "$sandbox/opencode.json" >/dev/null; then
+
+        fail "Generated OpenCode configuration failed validation"
+    fi
 
     start_stage "Check exact installed model"
 
@@ -396,7 +445,6 @@ Do not use tools. Do not add an explanation."
 
     start_stage "Validate structured response"
 
-    # Separate JSON validity from event and completion validation.
     if ! jq -e -s '
         length > 0
         and all(.[]; type == "object")
@@ -429,8 +477,6 @@ Do not use tools. Do not add an explanation."
         fail "No step_finish event with a finish reason"
     fi
 
-    # Token-limited output is acceptable for this connectivity test
-    # only if the full marker is present in the assistant text below.
     case "$finish_reason" in
         stop|length)
             ;;
@@ -439,25 +485,48 @@ Do not use tools. Do not add an explanation."
             ;;
     esac
 
-    if reply="$(
-        jq -er -s '
+    # Extract only assistant text events, not reasoning or logs.
+    # A jq extraction failure is not eligible for retry.
+    if ! reply="$(
+        jq -r -s '
             [
                 .[]
                 | select(.type == "text")
                 | .part.text
                 | select(type == "string")
-            ]
-            | join("")
-            | select(test("\\S"))
+            ] | join("")
         ' "$sandbox/events.jsonl"
     )"; then
-        printf '%s\n' "$reply" > "$sandbox/response.txt"
-    else
-        fail "No nonempty assistant text response"
+        fail "Could not extract assistant text"
     fi
 
-    [[ "$reply" == *"$marker"* ]] ||
+    printf '%s\n' "$reply" > "$sandbox/response.txt"
+
+    if [[ -z "${reply//[[:space:]]/}" ]]; then
+        completion_summary="$(
+            jq -c -s '
+                [
+                    .[]
+                    | select(.type == "step_finish")
+                    | {
+                        reason: .part.reason,
+                        tokens: .part.tokens
+                    }
+                ] | last
+            ' "$sandbox/events.jsonl"
+        )"
+
+        printf 'FAIL: [%s] Empty assistant response; completion=%s\n' \
+            "$stage" "$completion_summary" >&2
+
+        exit 75
+    fi
+
+    # Require the complete marker, but ignore capitalization changes.
+    # The original output remains unchanged in response.txt.
+    if [[ "${reply,,}" != *"${marker,,}"* ]]; then
         fail "Assistant text does not contain this run's complete marker"
+    fi
 
     if [[ "$finish_reason" == length ]]; then
         printf '%s\n' \
@@ -467,75 +536,124 @@ Do not use tools. Do not add an explanation."
     printf 'PASS: OpenCode -> Ollama -> OpenCode round trip\n'
     printf 'INFO: Completion reason: %s\n' "$finish_reason"
     printf 'INFO: Assistant response: %s\n' "$reply"
-    printf 'INFO: Worker elapsed time: %ss\n' "$SECONDS"
+    printf 'INFO: Overall elapsed time: %ss\n' "$SECONDS"
 }
 
-export -f integration_worker
+run_attempts() {
+    set -euo pipefail
+    SECONDS=0
 
-printf 'INFO: Endpoint: %s\n' "$ollama_url"
-printf 'INFO: Model: %s\n' "$model"
-printf 'INFO: Worker deadline: %ss per attempt\n' "$timeout_seconds"
+    local binary="$1"
+    local ollama_url="$2"
+    local model="$3"
+    local root="$4"
+    local budget="$5"
+    local retries="$6"
 
-# Each attempt gets the full budget: one deadline covers configuration
-# generation, model verification, OpenCode execution, and response
-# validation. Worst-case wall time is (1 + retries) x budget.
-#
-# Prevent inherited shell startup hooks from running in the worker.
-# Forced termination may add up to two seconds beyond the deadline.
-total_attempts=$((1 + retries))
-status=0
+    local total_attempts=$((1 + retries))
+    local attempt
+    local sandbox
+    local status
 
-for ((attempt = 1; attempt <= total_attempts; attempt++)); do
-    sandbox="$(mktemp -d /tmp/opencode-ollama-test.XXXXXXXX)"
-    sandboxes+=("$sandbox")
+    for ((attempt = 1; attempt <= total_attempts; attempt++)); do
+        sandbox="$root/attempt-$attempt"
+        mkdir -p "$sandbox"
 
-    printf 'INFO: Attempt %d/%d\n' "$attempt" "$total_attempts"
+        printf '%s\n' "$attempt" > "$root/current-attempt"
+        printf 'INFO: Attempt %d/%d; overall elapsed %ss\n' \
+            "$attempt" "$total_attempts" "$SECONDS"
 
-    if BASH_ENV=/dev/null ENV=/dev/null \
-        timeout --signal=TERM --kill-after=2s "${timeout_seconds}s" \
-            bash --noprofile --norc -c \
-                'integration_worker "$@"' integration-worker \
-                "$opencode_path" \
+        # Capture the subshell's status without disabling errexit
+        # inside integration_worker.
+        set +e
+        (
+            integration_worker \
+                "$binary" \
                 "$ollama_url" \
                 "$model" \
                 "$sandbox" \
-                "$timeout_seconds"; then
-        if ((attempt > 1)); then
-            printf 'INFO: Passed on attempt %d/%d\n' \
-                "$attempt" "$total_attempts"
-        fi
-        exit 0
-    else
+                "$budget"
+        )
         status=$?
-    fi
+        set -e
 
-    if [[ "$status" == 124 || "$status" == 137 ]]; then
+        printf '%s\n' "$status" > "$sandbox/worker-exit-status"
+
+        if [[ "$status" == 0 ]]; then
+            if ((attempt > 1)); then
+                printf 'WARN: Passed after %d empty-response failure(s)\n' \
+                    "$((attempt - 1))" >&2
+            fi
+            return 0
+        fi
+
+        print_diagnostics "$sandbox"
+
+        if [[ "$status" != 75 ]]; then
+            return "$status"
+        fi
+
+        if ((attempt == total_attempts)); then
+            printf 'FAIL: Empty response persisted after %d attempt(s)\n' \
+                "$total_attempts" >&2
+            return 1
+        fi
+
+        printf '%s\n' \
+            'WARN: Retrying empty response within the original overall deadline' >&2
+    done
+
+    return 1
+}
+
+export -f integration_worker print_diagnostics run_attempts
+
+printf 'INFO: Endpoint: %s\n' "$ollama_url"
+printf 'INFO: Model: %s\n' "$model"
+printf 'INFO: Declared context window: 8192 tokens\n'
+printf 'INFO: Output allowance: 128 tokens\n'
+printf 'INFO: Requested reasoning effort: none\n'
+printf 'INFO: Marker comparison: case-insensitive\n'
+printf 'INFO: Overall deadline: %ss across all attempts\n' "$timeout_seconds"
+printf 'INFO: Empty-response retries: %s\n' "$retries"
+
+# One timeout covers the entire retry loop.
+# Retries do not reset the deadline.
+# Forced termination may add up to two seconds of cleanup grace.
+if BASH_ENV=/dev/null ENV=/dev/null \
+    timeout --signal=TERM --kill-after=2s "${timeout_seconds}s" \
+        bash --noprofile --norc -c \
+            'run_attempts "$@"' integration-attempts \
+            "$opencode_path" \
+            "$ollama_url" \
+            "$model" \
+            "$test_root" \
+            "$timeout_seconds" \
+            "$retries"; then
+    exit 0
+else
+    status=$?
+fi
+
+if [[ "$status" == 124 || "$status" == 137 ]]; then
+    attempt="$(cat "$test_root/current-attempt" 2>/dev/null || true)"
+
+    if [[ "$attempt" =~ ^[1-4]$ ]]; then
+        sandbox="$test_root/attempt-$attempt"
         stage="$(cat "$sandbox/stage" 2>/dev/null || true)"
-        printf 'FAIL: Deadline exceeded during: %s\n' \
-            "${stage:-worker startup}" >&2
-        status=124
+
+        printf 'FAIL: Overall deadline exceeded during attempt %s: %s\n' \
+            "$attempt" "${stage:-attempt startup}" >&2
+
+        print_diagnostics "$sandbox"
+    else
+        printf 'FAIL: Overall deadline exceeded during worker startup\n' >&2
     fi
 
-    # Only transient integration failures (exit 1) are retried; setup
-    # errors, deadline expiry, and signals are not.
-    if [[ "$status" != 1 ]] || ((attempt == total_attempts)); then
-        break
-    fi
+    status=124
+fi
 
-    printf 'WARN: Attempt %d/%d failed (exit %d); retrying\n' \
-        "$attempt" "$total_attempts" "$status" >&2
-
-    # A failed intermediate attempt's sandbox is removed immediately.
-    rm -rf -- "$sandbox"
-done
-
-# Print bounded diagnostics for the final attempt before default
-# cleanup removes the files.
-for log in run.stderr events.jsonl response.txt; do
-    if [[ -s "$sandbox/$log" ]]; then
-        printf '\n--- %s (last 40 lines) ---\n' "$log" >&2
-        tail -n 40 -- "$sandbox/$log" >&2
-    fi
-done
+# Do not expose the internal retry-classification status.
+[[ "$status" != 75 ]] || status=1
 
 exit "$status"
