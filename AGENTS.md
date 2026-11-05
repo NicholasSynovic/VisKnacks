@@ -21,11 +21,13 @@ markdown prompts plus two MCP servers:
   the ParaView Python API. WIP. The `README.md` (index building, run commands,
   `query` tool) is current; module docstrings remain the source of truth for
   internals.
-- `build-scripts/` — assembles the distributable into `build/`.
+- `build-scripts/` — assembles the distributable into `build/.opencode/`.
 - `benchmark/` — SciVisAgentBench harness: a local matrix runner
-  (`benchmark.bash`) and a one-shot ALCF PBS job
-  (`benchmark_visknacks_ollama.bash`). Scripts tracked; `benchmark/data/`,
-  `benchmark/results/`, and `benchmark/.opencode/` are gitignored.
+  (`benchmark.bash`), a one-shot ALCF PBS job (`benchmark_visknacks_ollama.pbs`),
+  and a scorer (`run_metrics.bash` + `metrics.py`). Scripts tracked;
+  `benchmark/data/`, `benchmark/results/`, `benchmark/.opencode/`, and
+  `benchmark/scivisagentbench` are gitignored.
+- `tests/integration-tests/` — standalone bash integration tests (see Tests).
 
 Editing agent/skill behavior means editing markdown, not Python.
 
@@ -42,27 +44,24 @@ pre-commit install       # not done by create-dev
 ```
 
 `paraview` is conda-only and cannot be pip-installed; it is intentionally
-absent from every `pyproject.toml`.
-
-Use `conda activate` (or the env's absolute interpreter). `conda run -n
-VisKnacks python ...` resolves to base's python3.13 site-packages on this
-machine and fails on `import fastmcp`.
+absent from every `pyproject.toml`. Activate the env (or use its absolute
+interpreter) for anything importing `paraview`, `fastmcp`, or `faiss`.
 
 ## Stale docs — do not follow
 
-Commit `a3ac0ba` consolidated the per-subproject envs into the root one and
-deleted supporting files. The following referenced commands/paths **no longer
-exist**; ignore them when the docs mention them:
-
-- `mcp/pvpython-renderer/README.md` was rewritten against the single-env
-  layout (commit `a3ac0ba` follow-up); its build/run instructions are current.
+- The root `README.md` still says "There is no test suite or CI" and calls the
+  PBS job `benchmark_visknacks_ollama.bash`. Both are outdated: the integration
+  tests exist (see Tests) and the PBS file is `benchmark_visknacks_ollama.pbs`
+  (its own header usage comment still says `.bash` too).
 - `mcp/pvpython-rag/`: no `Makefile`, no `environment.yaml`. The
-  `make clone-paraview` (in `scripts/build_all_indexes.sh`) and
-  `make download-benchmark` (in `benchmark/benchmark.bash`) targets do not
-  exist — clone/download manually.
-- `mcp/pvpython-rag/pvpython_rag.egg-info/` is stale build residue.
+  `make clone-paraview` and `make download-benchmark` targets referenced in
+  docs (`scripts/build_all_indexes.sh`, the error hint in
+  `benchmark/benchmark.bash`) do not exist — clone/download manually.
+- `mcp/pvpython-rag/pvpython_rag.egg-info/` and `mcp/pvpython-rag/dist/` are
+  stale build residue.
 - Any mention of the `paraview-mcp` script name: the real console script is
-  `pvpython-renderer-mcp`.
+  `pvpython-renderer-mcp`. (An unrelated `paraview-mcp` from a different
+  package may also be on `PATH` in conda `base`.)
 
 ## Build
 
@@ -77,10 +76,10 @@ for each MCP server, writing wheels + sdists into the root `dist/`.
 (`uv=0.12.3`), so activate the env before building.
 
 `make install` runs `uv pip install dist/*.tar.gz` into the active env — the
-only way the console scripts get onto `PATH` (the PBS benchmark script expects
+only way the console scripts get onto `PATH` (the PBS benchmark job expects
 them there).
 
-Gotcha: `opencode.bash` uses bare `mkdir` (not `-p`) for the `agents`/`skills`
+Gotcha: `opencode.bash` uses bare `mkdir` (no `-p`) for the `agents`/`skills`
 subdirs, so re-running over an existing `build/.opencode` prints errors while
 still exiting 0. `rm -rf build/.opencode` first for a clean build.
 
@@ -124,10 +123,35 @@ Both console scripts (`pvpython-renderer-mcp`, `pvpython-rag-mcp`) work after
 (commit `dfb0e9c`) — an older installed copy may still be broken, so re-run
 `make build && make install` if `--help` misbehaves.
 
-## Lint / format / test
+## Tests
 
-There is **no test suite and no CI**. All quality gates run through
-pre-commit only:
+`tests/integration-tests/` holds **standalone bash integration tests**, not
+wired into pre-commit, the Makefile, or any CI — run them directly:
+
+```bash
+bash tests/integration-tests/test-ollama.bash            # ollama API reachable
+bash tests/integration-tests/test-opencode.bash          # opencode CLI works
+bash tests/integration-tests/test-opencode-ollama.bash   # opencode → ollama run
+bash tests/integration-tests/test-opencode-skill.bash    # skill actually loads
+bash tests/integration-tests/test-opencode-subagent.bash # subagent dispatch
+```
+
+- Exit-code contract in every script: `0` pass, `1` failure, `2` setup/config
+  error, `124` deadline exceeded. `optparse.bash` is a vendored getopts
+  wrapper shared by the tests, not a test itself.
+- The harness tests (`-ollama`, `-skill`, `-subagent`) assume the earlier
+  checks passed: Linux, `opencode` on `PATH`, a local `ollama serve` (default
+  `http://127.0.0.1:11434`), and the default model `qwen3.5:0.8b` **already
+  installed**. Overall budget defaults to 30 s — use `-t` to raise it for
+  slow models.
+- `-k/--keep-artifacts` retains the test sandbox (generated opencode config +
+  logs) for debugging; otherwise everything is cleaned up.
+- The skill/subagent tests assert on observed tool behavior (an actual skill
+  tool call / configured subagent dispatch), not assistant prose.
+
+## Lint / format
+
+No CI. All automated quality gates run through pre-commit only:
 
 ```bash
 pre-commit run --all-files
@@ -136,13 +160,14 @@ pre-commit run --all-files
 - ruff (`line-length = 80`); `F403`/`F405` are ignored project-wide because
   `from paraview.simple import *` in `pv_runner.py` is load-bearing. Do not
   "fix" the star import.
-- bandit (excludes `tests,build`).
+- bandit (excludes `tests,build`; mirrored in `.bandit`).
 - `prettier` and `skills-ref` hooks are `language: system` — both must already
   be on `PATH`, pre-commit will not install them. The skill validator runs on
   any change under `skills/paraview-coder/`, so the `SKILL.md` frontmatter
   `name:` must keep matching the directory name.
-- `no-commit-to-branch` blocks commits to `main`. Branches are named
-  `issue-<n>`; `dev` is the integration branch.
+- The `no-commit-to-branch` hook is currently commented out, but the branch
+  convention still holds: feature branches are `issue-<n>`, `dev` is the
+  integration branch.
 - `.editorconfig` says `insert_final_newline = false`, but pre-commit's
   `end-of-file-fixer` adds one. pre-commit wins.
 
@@ -163,9 +188,6 @@ python -m pvpython_rag.rag_mcp --host localhost --port 8081 \
     --directory data/paraview-vector-db
 ```
 
-(A stale `paraview-mcp` script from an unrelated upstream package may be on
-`PATH` in conda `base`. It is not this project.)
-
 Renderer (`execute_code`):
 
 - Spawns an ephemeral `pvpython` runner + `pvserver` per call in
@@ -180,28 +202,31 @@ Renderer (`execute_code`):
 RAG (`query`):
 
 - `--directory` is required. Indexes are `index_v<ver>.faiss` +
-  `metadata_v<ver>.json`; `--pv-version` defaults to `5.13.3`.
+  `metadata_v<ver>.json`; `--pv-version` defaults to `5.13.3`. A missing or
+  inconsistent pair fails fast at startup, before the server binds.
 - Known inconsistency: `scripts/build_all_indexes.sh` writes to
   `data/vector-db/`, but the shipped/expected index directory is
   `data/paraview-vector-db/`.
 - Index building requires CUDA (`device="cuda"`, no CPU fallback);
   `batch_size=1` and `max_seq_length=2048` are deliberate OOM mitigations. The
   server itself loads the model on CPU.
-- Queries must carry the `QUERY_PREFIX` instruction string (CodeRankEmbed is
-  asymmetric); embedding config in `rag_mcp.py` must stay identical to
-  `main.py` or retrieval silently degrades.
-- `mcp/pvpython-rag/data/` is gitignored — indexes and the vendored ParaView
-  clone are local-only.
+- The CodeRankEmbed query-instruction prefix is added internally by
+  `rag_mcp.py` (callers pass plain text), but the embedding config there must
+  stay identical to `main.py` or retrieval silently degrades.
+- `mcp/pvpython-rag/data/` is gitignored via its own `.gitignore`, except
+  `pv.zip`, which is un-ignored at the root and **is** tracked — the vendored
+  ParaView clone and built indexes remain local-only.
 
 ## Benchmark
 
 `benchmark/benchmark.bash` runs `opencode run --agent build --auto` for a
-matrix of models × tasks, `cd`-ing into `benchmark/` so the gitignored
-`benchmark/.opencode/` config (MCP endpoints 8080/8081) is picked up. Keep that
-file in sync with `build-scripts/opencode.json.template`.
+hardcoded list of `argo/*` models × tasks, `cd`-ing into `benchmark/` so the
+gitignored `benchmark/.opencode/` config (agent, skill, MCP endpoints
+8080/8081, ollama provider) is picked up. Keep that file in sync with
+`build-scripts/opencode.json.template`.
 
-- Env knobs: `NUM_TASKS=n` (default all), `FORCE=1` (re-run tasks with an
-  existing image).
+- Env knobs: `NUM_TASKS=n` (default all; `0` also means all), `FORCE=1`
+  (re-run tasks with an existing image).
 - It deliberately does not `set -e`.
 - Destructive: after each model it tars the results, moves them to
   `~/Desktop/MODEL.tar` — a literal fixed filename, so **every model
@@ -212,14 +237,15 @@ file in sync with `build-scripts/opencode.json.template`.
 - `benchmark/metrics.py` imports `imageio` and `skimage`, neither of which is
   listed in `environment.yaml`. A freshly created env cannot run it — install
   `imageio` and `scikit-image` manually.
-- `benchmark_visknacks_ollama.bash` is the **one-shot ALCF PBS job** (`qsub`,
-  not runnable locally) that folds the whole harness into a single
-  submission: it starts both MCP servers and `ollama serve` in-job on
-  **dynamic ports**, rewrites `benchmark/.opencode/opencode.json` in place
-  (atomic tmp+rename) with those ports, and **fails fast if `OLLAMA_MODEL`
-  is not in that config's `provider.ollama.models` allowlist** — adding a
-  model means editing that file on Eagle, the script never injects it. Knobs
-  via `qsub -v`: `OLLAMA_MODEL`, `PVPYTHON_DATA` (RAG index dir; checked for
+- `benchmark/benchmark_visknacks_ollama.pbs` is the **one-shot ALCF PBS job**
+  (`qsub`, not runnable locally; `-A EVITA`, queue `by-gpu`, 24 h walltime)
+  that folds the whole harness into a single submission: it starts both MCP
+  servers and `ollama serve` in-job on **dynamic ports**, rewrites
+  `benchmark/.opencode/opencode.json` in place (atomic tmp+rename) with those
+  ports, and **fails fast if `OLLAMA_MODEL` is not in that config's
+  `provider.ollama.models` allowlist** — adding a model means editing that
+  file on Eagle, the script never injects it. Knobs via `qsub -v`:
+  `OLLAMA_MODEL`, `PVPYTHON_DATA` (RAG index dir; checked for
   `index_v5.13.3.faiss` + `metadata_v5.13.3.json`), `NUM_TASKS=n|all`,
   `FORCE=1`, `TASK_TIMEOUT=<sec>` (default 3600, `0` disables). It exports
   `OLLAMA_KEEP_ALIVE=24h` and warms the model with one generate call before

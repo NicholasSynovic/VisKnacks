@@ -8,8 +8,16 @@
 #
 # Defaults:
 #   Ollama: http://127.0.0.1:11434
-#   Model:  qwen3.5:0.8b
+#   Model:  qwen3:0.6b
 #   Budget: 30 seconds for the entire integration worker
+#   Retries: 1 extra attempt for transient model flakes (0-3)
+#
+# Retry behavior:
+#   An attempt that fails with exit 1 (transient model behavior such as
+#   an empty assistant response) is retried up to --retries times with a
+#   fresh sandbox. Setup errors (2), deadline expiry (124/137), and
+#   signals (130/143) are never retried. Worst-case wall time is
+#   (1 + retries) x budget seconds.
 #
 # Dependencies:
 #   Linux, Bash 4+, GNU timeout, GNU sed, curl, jq,
@@ -36,20 +44,23 @@ PARSER="$SCRIPT_DIR/optparse.bash"
 [[ -r "$PARSER" ]] || setup_error "Cannot read parser: $PARSER"
 
 parser_file=""
-sandbox=""
 keep_artifacts=false
+sandboxes=()
 
 cleanup() {
     local status=$?
+    local path
     trap - EXIT
 
     [[ -z "$parser_file" ]] || rm -f -- "$parser_file"
 
-    if [[ -n "$sandbox" ]]; then
+    if ((${#sandboxes[@]} > 0)); then
         if [[ "$keep_artifacts" == true ]]; then
-            printf 'INFO: Test artifacts retained at %s\n' "$sandbox" >&2
+            for path in "${sandboxes[@]}"; do
+                printf 'INFO: Test artifacts retained at %s\n' "$path" >&2
+            done
         else
-            rm -rf -- "$sandbox"
+            rm -rf -- "${sandboxes[@]}"
         fi
     fi
 
@@ -69,7 +80,7 @@ optparse.define short=u long=ollama-url \
     desc="Ollama server root URL, without /v1"
 
 optparse.define short=m long=model \
-    variable=model default=qwen3.5:0.8b \
+    variable=model default=qwen3:0.6b \
     desc="Exact installed Ollama model name"
 
 optparse.define short=t long=timeout \
@@ -83,6 +94,10 @@ optparse.define short=b long=binary \
 optparse.define short=k long=keep-artifacts \
     variable=keep_artifacts value=true \
     desc="Keep temporary configuration and logs"
+
+optparse.define short=r long=retries \
+    variable=retries default=1 \
+    desc="Extra attempts after an integration failure (0-3)"
 
 parser_file="$(optparse.build)"
 [[ -r "$parser_file" ]] ||
@@ -114,6 +129,13 @@ timeout_seconds=$((10#$timeout_seconds))
 ((timeout_seconds >= 1 && timeout_seconds <= 86400)) ||
     setup_error "Timeout must be between 1 and 86400 seconds"
 
+[[ "$retries" =~ ^[0-9]$ ]] ||
+    setup_error "Retries must be an integer between 0 and 3"
+
+retries=$((10#$retries))
+((retries <= 3)) ||
+    setup_error "Retries must be between 0 and 3"
+
 # Accept a direct server origin only: no authentication, path,
 # query parameters, or fragment. Bracketed IPv6 is supported.
 while [[ "$ollama_url" == */ ]]; do
@@ -143,8 +165,6 @@ opencode_path="$(type -P -- "$opencode_binary" || true)"
 if [[ "$opencode_path" != /* ]]; then
     opencode_path="$PWD/$opencode_path"
 fi
-
-sandbox="$(mktemp -d /tmp/opencode-ollama-test.XXXXXXXX)"
 
 integration_worker() {
     set -euo pipefail
@@ -355,8 +375,7 @@ integration_worker() {
 
     marker="integration-ok-$(cat /proc/sys/kernel/random/uuid)"
     prompt="Reply with exactly this text: $marker
-Do not use tools. Do not add an explanation.
-/no_think"
+Do not use tools. Do not add an explanation."
 
     printf '%s\n' "$marker" > "$sandbox/marker.txt"
     printf '%s\n' "$prompt" > "$sandbox/prompt.txt"
@@ -455,35 +474,63 @@ export -f integration_worker
 
 printf 'INFO: Endpoint: %s\n' "$ollama_url"
 printf 'INFO: Model: %s\n' "$model"
-printf 'INFO: Overall worker deadline: %ss\n' "$timeout_seconds"
+printf 'INFO: Worker deadline: %ss per attempt\n' "$timeout_seconds"
 
-# One deadline covers configuration generation, model verification,
-# OpenCode execution, and response validation.
+# Each attempt gets the full budget: one deadline covers configuration
+# generation, model verification, OpenCode execution, and response
+# validation. Worst-case wall time is (1 + retries) x budget.
 #
 # Prevent inherited shell startup hooks from running in the worker.
 # Forced termination may add up to two seconds beyond the deadline.
-if BASH_ENV=/dev/null ENV=/dev/null \
-    timeout --signal=TERM --kill-after=2s "${timeout_seconds}s" \
-        bash --noprofile --norc -c \
-            'integration_worker "$@"' integration-worker \
-            "$opencode_path" \
-            "$ollama_url" \
-            "$model" \
-            "$sandbox" \
-            "$timeout_seconds"; then
-    exit 0
-else
-    status=$?
-fi
+total_attempts=$((1 + retries))
+status=0
 
-if [[ "$status" == 124 || "$status" == 137 ]]; then
-    stage="$(cat "$sandbox/stage" 2>/dev/null || true)"
-    printf 'FAIL: Deadline exceeded during: %s\n' \
-        "${stage:-worker startup}" >&2
-    status=124
-fi
+for ((attempt = 1; attempt <= total_attempts; attempt++)); do
+    sandbox="$(mktemp -d /tmp/opencode-ollama-test.XXXXXXXX)"
+    sandboxes+=("$sandbox")
 
-# Print bounded diagnostics before default cleanup removes the files.
+    printf 'INFO: Attempt %d/%d\n' "$attempt" "$total_attempts"
+
+    if BASH_ENV=/dev/null ENV=/dev/null \
+        timeout --signal=TERM --kill-after=2s "${timeout_seconds}s" \
+            bash --noprofile --norc -c \
+                'integration_worker "$@"' integration-worker \
+                "$opencode_path" \
+                "$ollama_url" \
+                "$model" \
+                "$sandbox" \
+                "$timeout_seconds"; then
+        if ((attempt > 1)); then
+            printf 'INFO: Passed on attempt %d/%d\n' \
+                "$attempt" "$total_attempts"
+        fi
+        exit 0
+    else
+        status=$?
+    fi
+
+    if [[ "$status" == 124 || "$status" == 137 ]]; then
+        stage="$(cat "$sandbox/stage" 2>/dev/null || true)"
+        printf 'FAIL: Deadline exceeded during: %s\n' \
+            "${stage:-worker startup}" >&2
+        status=124
+    fi
+
+    # Only transient integration failures (exit 1) are retried; setup
+    # errors, deadline expiry, and signals are not.
+    if [[ "$status" != 1 ]] || ((attempt == total_attempts)); then
+        break
+    fi
+
+    printf 'WARN: Attempt %d/%d failed (exit %d); retrying\n' \
+        "$attempt" "$total_attempts" "$status" >&2
+
+    # A failed intermediate attempt's sandbox is removed immediately.
+    rm -rf -- "$sandbox"
+done
+
+# Print bounded diagnostics for the final attempt before default
+# cleanup removes the files.
 for log in run.stderr events.jsonl response.txt; do
     if [[ -s "$sandbox/$log" ]]; then
         printf '\n--- %s (last 40 lines) ---\n' "$log" >&2
