@@ -14,6 +14,9 @@
 #   9.  test-pvpython-renderer-tools.bash
 #   10. test-pvpython-renderer-execute.bash
 #   11. test-pvpython-renderer-render.bash
+#   12. test-opencode-renderer-discovery.bash
+#   13. test-opencode-renderer-execute.bash
+#   14. test-opencode-renderer-render.bash
 #
 # Each test runs with its own default budget unless --timeout is given.
 #
@@ -65,7 +68,7 @@ optparse.define short=b long=opencode-binary \
 
 optparse.define short=y long=python \
     variable=python_binary default=python \
-    desc="Python interpreter for the renderer CLI test"
+    desc="Python interpreter with mcp for the renderer tests"
 
 optparse.define short=M long=mcp-host \
     variable=mcp_host default=127.0.0.1 \
@@ -89,11 +92,11 @@ optparse.define short=k long=keep-artifacts \
 
 optparse.define short=O long=skip-opencode \
     variable=skip_opencode value=true \
-    desc="Skip the OpenCode/Ollama stages (tests 2-5)"
+    desc="Skip the OpenCode/Ollama stages (tests 2-5, 12-14)"
 
 optparse.define short=C long=skip-mcp \
     variable=skip_mcp value=true \
-    desc="Skip the PV Renderer MCP stages (tests 6-11)"
+    desc="Skip the MCP renderer stages (tests 6-14)"
 
 optparse.define short=g long=keep-going \
     variable=keep_going value=true \
@@ -196,6 +199,7 @@ fi
 
 ollama_stage_args=(-u "$ollama_url" -m "$model" -b "$opencode_binary")
 renderer_stage_args=(-H "$mcp_host" -p "$mcp_port")
+opencode_renderer_args=("${ollama_stage_args[@]}" -p "$python_binary")
 
 run_list=(
     "test-ollama.bash|-H $ollama_host -p $ollama_port ${timeout_args[*]-}"
@@ -209,6 +213,9 @@ run_list=(
     "test-pvpython-renderer-tools.bash|${renderer_stage_args[*]} ${timeout_args[*]-} ${keep_args[*]-}"
     "test-pvpython-renderer-execute.bash|${renderer_stage_args[*]} ${timeout_args[*]-} ${keep_args[*]-}"
     "test-pvpython-renderer-render.bash|${renderer_stage_args[*]} ${timeout_args[*]-} ${keep_args[*]-}"
+    "test-opencode-renderer-discovery.bash|${opencode_renderer_args[*]} ${timeout_args[*]-} ${keep_args[*]-}"
+    "test-opencode-renderer-execute.bash|${opencode_renderer_args[*]} ${timeout_args[*]-} ${keep_args[*]-}"
+    "test-opencode-renderer-render.bash|${opencode_renderer_args[*]} ${timeout_args[*]-} ${keep_args[*]-}"
 )
 
 # ============================================================================
@@ -235,7 +242,8 @@ for entry in "${run_list[@]}"; do
     fi
 
     if [[ "$skip_mcp" == true ]] &&
-        [[ "$test_script" == test-pvpython*.bash ]]; then
+        [[ "$test_script" == test-pvpython*.bash ||
+           "$test_script" == test-opencode-renderer-*.bash ]]; then
         statuses+=("SKIP")
         continue
     fi

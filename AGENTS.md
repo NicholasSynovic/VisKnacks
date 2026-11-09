@@ -134,6 +134,10 @@ bash tests/integration-tests/test-opencode.bash          # opencode CLI works
 bash tests/integration-tests/test-opencode-ollama.bash   # opencode → ollama run
 bash tests/integration-tests/test-opencode-skill.bash    # skill actually loads
 bash tests/integration-tests/test-opencode-subagent.bash # subagent dispatch
+bash tests/integration-tests/test-pvpython-env.bash      # paraview binaries present
+bash tests/integration-tests/test-pvpython-renderer-*.bash  # direct MCP renderer tests
+bash tests/integration-tests/test-opencode-renderer-*.bash  # renderer via opencode
+bash tests/integration-tests/run-all.bash                # all of the above in order
 ```
 
 - Exit-code contract in every script: `0` pass, `1` failure, `2` setup/config
@@ -144,6 +148,10 @@ bash tests/integration-tests/test-opencode-subagent.bash # subagent dispatch
   `http://127.0.0.1:11434`), and the default model `qwen3.5:0.8b` **already
   installed**. Overall budget defaults to 30 s — use `-t` to raise it for
   slow models.
+- The renderer MCP tests (`test-pvpython-renderer-*` directly,
+  `test-opencode-renderer-*` end to end through opencode) spawn isolated
+  renderer servers; the opencode variants additionally need pvpython/pvserver
+  on `PATH`. Details, caveats, and options: `tests/integration-tests/README.md`.
 - `-k/--keep-artifacts` retains the test sandbox (generated opencode config +
   logs) for debugging; otherwise everything is cleaned up.
 - The skill/subagent tests assert on observed tool behavior (an actual skill

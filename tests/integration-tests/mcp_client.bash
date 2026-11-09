@@ -22,7 +22,7 @@
 # the transport fails. Used for server readiness polling.
 mcp_http_code() {
     local url="$1" max_time="${2:-2}"
-    curl --silent --output /dev/null --write-out '%{http_code}' \
+    curl --disable --silent --output /dev/null --write-out '%{http_code}' \
         --noproxy '*' --globoff \
         --connect-timeout 1 --max-time "$max_time" "$url" 2>/dev/null || true
 }
@@ -68,7 +68,7 @@ mcp_post() {
     if [[ -n "$session" ]]; then
         args+=(--header "mcp-session-id: $session")
     fi
-    curl "${args[@]}" "$url"
+    curl --disable "${args[@]}" "$url"
 }
 
 # mcp_extract_json <body_file> <out_file>

@@ -33,6 +33,7 @@ repos:
             args: [--fix=lf]
           - id: name-tests-test
             args: [--unittest] # test.*\.py
+            exclude: ^tests/integration-tests/renderer-assert\.py$ # helper, not a test
           # - id: no-commit-to-branch
           #   args: [--branch, main]
           - id: pretty-format-json
