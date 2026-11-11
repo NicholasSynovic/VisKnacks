@@ -168,7 +168,7 @@ server_worker() {
     local sandbox="$6"
 
     local stage=""
-    local url="http://$bind:$port/mcp/"
+    local url="http://$bind:$port/mcp"
     local code=""
     local arguments=""
     local png_file="$sandbox/render.png"

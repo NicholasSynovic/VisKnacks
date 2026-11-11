@@ -189,16 +189,17 @@ mcp_stop_server() {
 }
 
 # mcp_await_ready <host> <port> <server_pid> <max_seconds>
-# Poll until the server answers any HTTP request on /mcp. Returns 1 when
-# the server process dies or the deadline expires first.
+# Poll until the server answers an HTTP request on /mcp with a non-3xx
+# status (redirects do not count as readiness). Returns 1 when the
+# server process dies or the deadline expires first.
 mcp_await_ready() {
     local host="$1" port="$2" pid="$3" max_seconds="$4"
     local code=""
     local deadline=$(( $(date +%s) + max_seconds ))
     while (( $(date +%s) < deadline )); do
         kill -0 "$pid" 2>/dev/null || return 1
-        code="$(mcp_http_code "http://$host:$port/mcp/" 2)"
-        if [[ "$code" =~ ^[2-5][0-9][0-9]$ ]]; then
+        code="$(mcp_http_code "http://$host:$port/mcp" 2)"
+        if [[ "$code" =~ ^[245][0-9][0-9]$ ]]; then
             return 0
         fi
         sleep 0.2

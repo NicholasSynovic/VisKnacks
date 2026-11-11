@@ -113,7 +113,7 @@ renderer_worker() {
     mcp_start_server "$py" "$package" 127.0.0.1 "$port" "$root/renderer" "$root/renderer.log"
     mcp_await_ready 127.0.0.1 "$port" "$MCP_SERVER_PID" 30 || fail 'Renderer did not become ready'
     phase 'Generate isolated OpenCode configuration'
-    jq -n --arg url "http://127.0.0.1:$port/mcp/" --arg base "$ollama/v1" --arg model "$model" --argjson ms "$((budget*1000))" '
+    jq -n --arg url "http://127.0.0.1:$port/mcp" --arg base "$ollama/v1" --arg model "$model" --argjson ms "$((budget*1000))" '
     {
         "$schema":"https://opencode.ai/config.json",
         model:("ollama-test/"+$model), small_model:("ollama-test/"+$model),
@@ -162,9 +162,9 @@ renderer_worker() {
     # An independent protocol request validates the upstream schema, not
     # an assumed OpenCode experimental-tool registry representation.
     phase 'Verify upstream execute_code schema'
-    mcp_handshake "http://127.0.0.1:$port/mcp/" "$root/renderer" 15 1 || fail 'Schema-check MCP handshake failed'
+    mcp_handshake "http://127.0.0.1:$port/mcp" "$root/renderer" 15 1 || fail 'Schema-check MCP handshake failed'
     mcp_list_tools_request 2 "$root/tools-request.json"
-    http="$(mcp_post "$MCP_SESSION" 15 "http://127.0.0.1:$port/mcp/" "$root/tools-request.json" "$root/tools.headers" "$root/tools.body")" || fail 'tools/list transport failed'
+    http="$(mcp_post "$MCP_SESSION" 15 "http://127.0.0.1:$port/mcp" "$root/tools-request.json" "$root/tools.headers" "$root/tools.body")" || fail 'tools/list transport failed'
     [[ "$http" == 200 ]] || fail "tools/list HTTP $http"
     mcp_extract_json "$root/tools.body" "$root/tools.json" || fail 'Invalid tools/list response'
     jq -e '
