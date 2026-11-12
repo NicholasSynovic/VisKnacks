@@ -143,6 +143,18 @@ bash tests/integration-tests/run-all.bash                # all of the above in o
 - Exit-code contract in every script: `0` pass, `1` failure, `2` setup/config
   error, `124` deadline exceeded. `optparse.bash` is a vendored getopts
   wrapper shared by the tests, not a test itself.
+- Tool versions are pinned exactly in `tests/integration-tests/versions.env`
+  (enforced by `version-check.bash`, exit 2 on mismatch): OpenCode
+  2.2.7, Ollama 0.40.14, ParaView 6.1.1, and the `mcp` Python package
+  1.9.4. The tests drive OpenCode's V2 server API (`/api/*`, HTTP
+  basic auth via a per-run `OPENCODE_SERVER_PASSWORD`); the harness
+  stages poll `GET /api/session/active` as the turn-completion barrier
+  (a held idle-wait connection can be dropped mid-run and abort the
+  tool). The renderer MCP client follows redirects: with the base env
+  `mcp` package the server 307-redirects `/mcp` to `/mcp/` (the
+  VisKnacks env's standalone fastmcp does not). Note the base env also
+  carries an unrelated `paraview-mcp` pypi package — a PATH-collision
+  hazard for the console scripts.
 - The harness tests (`-ollama`, `-skill`, `-subagent`) assume the earlier
   checks passed: Linux, `opencode` on `PATH`, a local `ollama serve` (default
   `http://127.0.0.1:11434`), and the default model `qwen3.5:0.8b` **already

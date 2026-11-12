@@ -13,6 +13,10 @@
 # Assumptions:
 #   Earlier tests verified OpenCode, Ollama, and model availability.
 #
+# OpenCode server API:
+#   Drives the OpenCode V2 HTTP API under /api with HTTP basic auth.
+#   The per-run server password is supplied via OPENCODE_SERVER_PASSWORD.
+#
 # Dependencies:
 #   Linux, Bash 4+, GNU timeout, GNU sed, curl, jq, setsid,
 #   OpenCode, and the supplied optparse.bash.
@@ -39,6 +43,7 @@ setup_error() {
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PARSER="$SCRIPT_DIR/optparse.bash"
+VERSION_CHECK="$SCRIPT_DIR/version-check.bash"
 
 parser_file=""
 sandbox=""
@@ -68,6 +73,9 @@ trap 'exit 143' TERM
 
 [[ -r "$PARSER" ]] ||
     setup_error "Cannot read parser: $PARSER"
+
+[[ -r "$VERSION_CHECK" ]] ||
+    setup_error "Cannot read version checker: $VERSION_CHECK"
 
 source "$PARSER"
 
@@ -144,6 +152,11 @@ if [[ "$opencode_path" != /* ]]; then
     opencode_path="$PWD/$opencode_path"
 fi
 
+# The tests pin exact tool versions; reject any other release early.
+# shellcheck disable=SC1090
+source "$VERSION_CHECK"
+require_opencode_version "$opencode_path"
+
 sandbox="$(mktemp -d /tmp/opencode-skill-test.XXXXXXXX)"
 
 skill_worker() {
@@ -162,7 +175,12 @@ skill_worker() {
     local selected_model="ollama-test/$model"
     local run_id=""
     local marker=""
-    local prompt_finished=false
+    local server_password=""
+    local http_code=""
+    local turn_finished=false
+    local active_seen=false
+    local active=""
+    local diagnose_polls=0
 
     # Retain these for EXIT cleanup after function-local scope unwinds.
     declare -g server_pid=""
@@ -227,6 +245,7 @@ skill_worker() {
             --connect-timeout 1
             --max-time "$budget"
             --request "$method"
+            --user "opencode:$server_password"
             --output "$output"
         )
 
@@ -249,11 +268,11 @@ skill_worker() {
         finish="$(
             jq -r '
                 [
-                    .[]
-                    | select(.info.role == "assistant")
+                    (.data // [])[]
+                    | select(.type == "assistant")
                 ]
                 | last
-                | .info.finish // "unknown"
+                | .finish // "unknown"
             ' "$sandbox/messages.json"
         )"
 
@@ -278,6 +297,8 @@ skill_worker() {
 
     run_id="$(cat /proc/sys/kernel/random/uuid)"
     marker="skill-ok-${run_id:0:8}"
+    # Per-run basic-auth password for the temporary server.
+    server_password="pw-${run_id//-/}"
     printf '%s\n' "$marker" > "$sandbox/marker.txt"
 
     # Do not put the marker in the description or user/agent prompt.
@@ -373,6 +394,7 @@ EOF
             "no_proxy=*" \
             "OPENCODE_CONFIG=$sandbox/opencode.json" \
             "OPENCODE_CONFIG_DIR=$sandbox/config/opencode" \
+            "OPENCODE_SERVER_PASSWORD=$server_password" \
             "OPENCODE_DISABLE_PROJECT_CONFIG=true" \
             "OPENCODE_DISABLE_CLAUDE_CODE=true" \
             "OPENCODE_DISABLE_EXTERNAL_SKILLS=true" \
@@ -398,14 +420,35 @@ EOF
         )"
 
         if [[ -n "$server_url" ]]; then
-            if api GET /global/health "$sandbox/health.json" \
-                2> "$sandbox/readiness.stderr"; then
+            # OpenCode V2 serves readiness at /api/info (no "healthy"
+            # field) and requires basic auth with the server password.
+            http_code="$(
+                curl \
+                    --disable \
+                    --silent \
+                    --show-error \
+                    --noproxy '*' \
+                    --globoff \
+                    --connect-timeout 1 \
+                    --max-time "$budget" \
+                    --user "opencode:$server_password" \
+                    --write-out '%{http_code}' \
+                    --output "$sandbox/health.json" \
+                    "$server_url/api/info" \
+                    2> "$sandbox/readiness.stderr" || true
+            )"
 
-                if jq -e '.healthy == true' \
-                    "$sandbox/health.json" >/dev/null; then
-                    break
-                fi
-            fi
+            case "$http_code" in
+                200)
+                    if jq -e '.version | type == "string" and length > 0' \
+                        "$sandbox/health.json" >/dev/null 2>&1; then
+                        break
+                    fi
+                    ;;
+                401 | 403)
+                    fail "Server rejected credentials (HTTP $http_code)"
+                    ;;
+            esac
         fi
 
         sleep 0.1
@@ -418,13 +461,13 @@ EOF
     printf '{"title":"Skill loading integration test"}\n' \
         > "$sandbox/create-session.json"
 
-    api POST /session \
+    api POST /api/session \
         "$sandbox/session.json" \
         "$sandbox/create-session.json" ||
         fail "Could not create session"
 
     if ! session_id="$(
-        jq -er '.id | select(type == "string" and length > 0)' \
+        jq -er '.data.id | select(type == "string" and length > 0)' \
             "$sandbox/session.json"
     )"; then
         fail "Session response did not contain an ID"
@@ -434,19 +477,14 @@ EOF
 
     jq -n '{
         agent: "integration-skill",
-        parts: [
-            {
-                type: "text",
-                text: (
-                    "Execute the skill tool with " +
-                    "{\"name\":\"integration-probe\"} now. " +
-                    "An actual tool invocation is required."
-                )
-            }
-        ]
+        text: (
+            "Execute the skill tool with " +
+            "{\"name\":\"integration-probe\"} now. " +
+            "An actual tool invocation is required."
+        )
     }' > "$sandbox/prompt-request.json"
 
-    api POST "/session/$session_id/message" \
+    api POST "/api/session/$session_id/prompt" \
         "$sandbox/prompt-response.json" \
         "$sandbox/prompt-request.json" \
         2> "$sandbox/prompt.stderr" &
@@ -464,39 +502,69 @@ EOF
 
             if wait "$request_pid"; then
                 request_pid=""
-                prompt_finished=true
             else
                 request_pid=""
                 fail "Prompt HTTP request failed"
             fi
         fi
 
-        api GET "/session/$session_id/message" \
+        api GET "/api/session/$session_id/message?limit=200" \
             "$sandbox/messages.json" ||
             fail "Could not read session messages"
 
-        jq -e 'type == "array"' "$sandbox/messages.json" >/dev/null ||
+        jq -e '.data | type == "array"' "$sandbox/messages.json" >/dev/null ||
             fail "Invalid session-message response"
+
+        # Turn-completion barrier: the V2 prompt endpoint admits the
+        # input and starts the agent loop asynchronously, and a held
+        # idle-wait connection can be dropped mid-run, so poll the
+        # active-session map instead. The session is listed while its
+        # loop runs and disappears when it goes idle; conclude only
+        # after having seen it active. If it was never seen active
+        # (an instant error can come and go between polls), conclude
+        # only when the projection shows a terminal assistant turn.
+        api GET /api/session/active \
+            "$sandbox/active.json" ||
+            fail "Could not read active sessions"
+
+        active="$(
+            jq -r --arg s "$session_id" \
+                '.data | has($s)' \
+                "$sandbox/active.json" 2>/dev/null || true
+        )"
+
+        if [[ "$active" == "true" ]]; then
+            active_seen=true
+        elif [[ "$active_seen" == true ]]; then
+            turn_finished=true
+        elif jq -e '
+                ((.data // [])[]
+                    | select(.type == "assistant")
+                    | (.finish != null or .error != null)
+                ) // false
+            ' "$sandbox/messages.json" >/dev/null 2>&1; then
+            turn_finished=true
+        fi
 
         jq '
             [
-                .[]
-                | select(.info.role == "assistant")
-                | .parts[]
+                .data[]
+                | select(.type == "assistant")
+                | .content[]?
                 | select(.type == "tool")
             ]
         ' "$sandbox/messages.json" > "$sandbox/tool-parts.json"
 
         if jq -e '
-            any(.[]; .tool != "skill")
+            any(.[]; .name != "skill")
         ' "$sandbox/tool-parts.json" >/dev/null; then
             fail "Agent invoked an unrelated tool"
         fi
 
         if jq -e '
             any(.[];
-                .state.input.name? != null
-                and .state.input.name != "integration-probe"
+                .state.input.id? != null
+                and .state.input.id != "integration-probe"
             )
         ' "$sandbox/tool-parts.json" >/dev/null; then
             fail "Agent requested an unexpected skill"
@@ -509,9 +577,9 @@ EOF
         fi
 
         if jq -e '
-            any(.[];
-                .info.role == "assistant"
-                and .info.error != null
+            any(.data[];
+                .type == "assistant"
+                and .error != null
             )
         ' "$sandbox/messages.json" >/dev/null; then
             fail "Assistant returned an error"
@@ -521,21 +589,26 @@ EOF
         # assistant text, descriptions, or tool arguments.
         jq --arg marker "$marker" '
             [
-                .[]
+                .data[]
+                | select(.type == "assistant")
+                | .content[]?
                 | select(
-                    .tool == "skill"
-                    and .state.input.name == "integration-probe"
+                    .type == "tool"
+                    and .name == "skill"
+                    and .state.input.id == "integration-probe"
                     and .state.status == "completed"
                     and (
-                        (.state.output // "")
-                        | if type == "string"
-                          then contains($marker)
-                          else false
-                          end
+                        (
+                            [.state.content[]?
+                                | select(.type == "text")
+                                | .text]
+                            | join("")
+                        )
+                        | contains($marker)
                     )
                 )
             ]
-        ' "$sandbox/tool-parts.json" > "$sandbox/matching-loads.json"
+        ' "$sandbox/messages.json" > "$sandbox/matching-loads.json"
 
         if jq -e 'length > 0' \
             "$sandbox/matching-loads.json" >/dev/null; then
@@ -552,16 +625,21 @@ EOF
 
         if jq -e '
             any(.[];
-                .tool == "skill"
-                and .state.input.name == "integration-probe"
+                .name == "skill"
+                and .state.input.id == "integration-probe"
                 and .state.status == "completed"
             )
         ' "$sandbox/tool-parts.json" >/dev/null; then
             fail "Skill loaded but tool output lacks the expected body marker"
         fi
 
-        if [[ "$prompt_finished" == true ]]; then
-            diagnose_no_load
+        # Only diagnose once the idle barrier has fired, allowing the
+        # message projection a short grace period to catch up.
+        if [[ "$turn_finished" == true ]]; then
+            ((diagnose_polls += 1))
+            if ((diagnose_polls > 10)); then
+                diagnose_no_load
+            fi
         fi
 
         sleep 0.2
@@ -601,6 +679,7 @@ for log in \
     server.log \
     prompt.stderr \
     prompt-response.json \
+    active.json \
     messages.json \
     tool-parts.json; do
 

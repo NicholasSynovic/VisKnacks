@@ -35,6 +35,17 @@ def make_code(mode, root, marker):
     (root / "code.py").write_text(code)
 
 
+def tool_output_text(state):
+    """Join the V2 tool-state text chunks into one output string."""
+    chunks = state.get("content")
+    check(isinstance(chunks, list), "Tool state carries no content chunks")
+    return "".join(
+        item.get("text", "")
+        for item in chunks
+        if isinstance(item, dict) and item.get("type") == "text"
+    )
+
+
 def unwrap(value):
     if isinstance(value, str):
         value = json.loads(value)
@@ -138,7 +149,7 @@ def validate_result(mode, root, marker):
     check(len(tools) == 1, "Expected exactly one tool call")
     part = tools[0]
     check(
-        part.get("tool") == "pvpython_renderer_execute_code", "Unexpected tool"
+        part.get("name") == "pvpython_renderer_execute_code", "Unexpected tool"
     )
     state = part["state"]
     check(state.get("status") == "completed", "Tool did not complete")
@@ -148,7 +159,7 @@ def validate_result(mode, root, marker):
         == (root / "code.py").read_text().rstrip("\r\n"),
         "Model changed the supplied code; input contract not met",
     )
-    result = unwrap(state.get("output"))
+    result = unwrap(tool_output_text(state))
     (root / "renderer-result.json").write_text(
         json.dumps(result, indent=2) + "\n"
     )

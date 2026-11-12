@@ -19,7 +19,7 @@ used; run a failing test directly to isolate it.
 
 | Script                                  | Verifies                                                                                                            | Default budget |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `test-ollama.bash`                      | Ollama API reachable, `/api/version` returns valid JSON                                                             | 5 s/request    |
+| `test-ollama.bash`                      | Ollama API reachable, `/api/version` returns valid JSON matching the pinned version                                 | 5 s/request    |
 | `test-opencode.bash`                    | OpenCode CLI runs, `--help` and `--version` work                                                                    | 10 s/check     |
 | `test-opencode-ollama.bash`             | OpenCode → Ollama → OpenCode round trip; assistant text contains the run marker                                     | 30 s overall   |
 | `test-opencode-skill.bash`              | An actual skill tool call for `integration-probe` completes and returns the skill-body marker                       | 30 s overall   |
@@ -40,6 +40,11 @@ Shared helpers, not tests themselves:
   (https://github.com/nk412/optparse) shared by every script. It exits 1
   for argument-parsing errors and accepts only space-separated option
   values, not `--option=value`.
+- `versions.env` — the single place where the required OpenCode and
+  Ollama versions are pinned. See "Pinned versions" below.
+- `version-check.bash` — sourced by `run-all.bash` and every
+  OpenCode-using test; provides `require_opencode_version` and
+  `require_ollama_version`, which exit 2 on any mismatch.
 - `mcp_client.bash` — pure-bash MCP streamable-http client plus server
   lifecycle helpers. Sourced by the direct renderer tests and the
   OpenCode renderer driver; every server test spawns its own isolated
@@ -68,6 +73,36 @@ Linux, Bash 4+, GNU `timeout`. Per group:
 The harness stages build isolated OpenCode configuration and state per
 attempt; installed binaries and the Ollama service are shared and never
 restarted.
+
+## Pinned versions
+
+The tests drive exact OpenCode server API response shapes and Ollama
+endpoints, so tool versions are pinned **exactly**:
+
+- `tests/integration-tests/versions.env` declares
+  `OPENCODE_REQUIRED_VERSION`, `OLLAMA_REQUIRED_VERSION`,
+  `PARAVIEW_REQUIRED_VERSION`, and `MCP_REQUIRED_VERSION` — the only
+  place versions are written.
+- `run-all.bash` checks them before stage 1 (Ollama unconditionally,
+  OpenCode unless `-O`/`--skip-opencode`, ParaView + the `mcp` Python
+  package unless `-C`/`--skip-mcp`); each test re-checks the tools it
+  uses: Ollama in `test-ollama.bash`, OpenCode in every harness test,
+  ParaView in `test-pvpython-env.bash`, and the `mcp` package in every
+  renderer test.
+- Any mismatch, unparseable version, or unreachable version endpoint
+  exits 2 (invalid setup) before any test logic runs.
+
+The ParaView pin matters beyond cosmetics: the 5.13.3 X-only build
+cannot render headless on this machine (`bad X server connection`),
+while 6.1.1 falls back to EGL and renders fine. The `mcp` pin fixes
+the server's streamable-http traits (the base env's `mcp` package
+307-redirects `/mcp` to `/mcp/`; the tests follow redirects and work
+with either trait).
+
+To upgrade the pinned versions: update the tool install, verify the
+API/protocol shapes the tests rely on, then edit `versions.env` alone.
+On Homebrew, `brew pin opencode-v2` additionally blocks accidental
+upgrades of the installed binary.
 
 ## Conventions
 
@@ -144,12 +179,12 @@ the shared driver lives in `opencode-renderer-common.bash`.
 
 - `test-opencode-renderer-discovery.bash`: starts a dedicated renderer
   and an isolated OpenCode server on loopback. Requires OpenCode's
-  `/mcp` status to report `connected` for `pvpython_renderer`, then
-  separately performs a raw MCP handshake and `tools/list` to verify
-  the upstream `execute_code` schema. The schema check is independent
-  of OpenCode; it is NOT proof that an OpenCode experimental
-  tool-registry endpoint lists MCP schemas. No model inference or
-  `execute_code` call occurs in discovery.
+  `/api/mcp` status to report `connected` for `pvpython_renderer`,
+  then separately performs a raw MCP handshake and `tools/list` to
+  verify the upstream `execute_code` schema. The schema check is
+  independent of OpenCode; it is NOT proof that an OpenCode
+  experimental tool-registry endpoint lists MCP schemas. No model
+  inference or `execute_code` call occurs in discovery.
 - `test-opencode-renderer-execute.bash`: requires one real
   `pvpython_renderer_execute_code` tool part, matching the supplied
   Python (allowing only trailing newline differences), completed state,
@@ -200,18 +235,27 @@ structuredContent/content wrapper containing that JSON. Unexpected
 wrapping fails with saved tool parts rather than being accepted via
 loose string matching.
 
-The tests use OpenCode's `/global/health`, `/mcp` and session message
-APIs and assume the response shape documented for OpenCode's server
-API; differences in an installed version fail visibly with diagnostics.
+The tests use OpenCode's V2 server API under `/api` with HTTP basic
+auth: `GET /api/info` (readiness, version field), `POST /api/session`,
+`POST /api/session/:id/prompt` (asynchronous admission; the
+experimental `POST /api/experimental/session/:id/wait` is the
+turn-completion barrier), `GET /api/session?parentID=` (child
+sessions), `GET /api/session/:id/message` (paginated `{data, cursor}`
+flat messages), and `GET /api/mcp`. Each temporary server gets a
+per-run password via `OPENCODE_SERVER_PASSWORD`; response shapes are
+asserted strictly, so differences in an installed version fail
+visibly with diagnostics (the version pin makes this a setup error
+instead).
 
 ### Safety and deployment scope
 
 These tests start a real `execute_code` service and submit executable
 Python. HOME/XDG isolation is not a security sandbox. Use a disposable
 or dedicated account with appropriately limited filesystem/network
-access. Both temporary servers bind loopback and are unauthenticated.
-Other local processes may still reach them. Do not expose the renderer
-to an untrusted network.
+access. Both temporary servers bind loopback; the renderer MCP server
+is unauthenticated, while the OpenCode server requires the per-run
+basic-auth password. Other local processes may still reach them. Do
+not expose the renderer to an untrusted network.
 
 The tests are local-only: screenshot validation assumes the renderer
 and harness share the temporary directory. No SSH, reverse proxy,

@@ -31,9 +31,13 @@ fail() {
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PARSER="${SCRIPT_DIR}/optparse.bash"
+VERSION_CHECK="${SCRIPT_DIR}/version-check.bash"
 
 [[ -r "$PARSER" ]] ||
     config_error "Cannot read parser: $PARSER"
+
+[[ -r "$VERSION_CHECK" ]] ||
+    config_error "Cannot read version checker: $VERSION_CHECK"
 
 parser_file=""
 test_dir=""
@@ -92,6 +96,11 @@ opencode_path="$(type -P -- "$opencode_binary" || true)"
 if [[ "$opencode_path" != /* ]]; then
     opencode_path="$PWD/$opencode_path"
 fi
+
+# The tests pin exact tool versions; reject any other release early.
+# shellcheck disable=SC1090
+source "$VERSION_CHECK"
+require_opencode_version "$opencode_path"
 
 printf 'PASS: OpenCode is available: %s\n' "$opencode_path"
 

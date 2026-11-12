@@ -29,8 +29,11 @@ fail_config() {
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PARSER="${SCRIPT_DIR}/optparse.bash"
+VERSION_CHECK="${SCRIPT_DIR}/version-check.bash"
 
 [[ -r "$PARSER" ]] || fail_config "Cannot read parser: $PARSER"
+[[ -r "$VERSION_CHECK" ]] ||
+    fail_config "Cannot read version checker: $VERSION_CHECK"
 source "$PARSER"
 
 optparse.define short=t long=timeout \
@@ -62,6 +65,10 @@ timeout=$((10#$timeout))
 ((timeout >= 1 && timeout <= 86400)) ||
     fail_config "Timeout must be between 1 and 86400 seconds"
 
+# The tests pin exact tool versions; reject any other release early.
+# shellcheck disable=SC1090
+source "$VERSION_CHECK"
+
 for binary in pvpython pvserver; do
     binary_path="$(type -P -- "$binary" || true)"
     [[ -n "$binary_path" && -x "$binary_path" ]] ||
@@ -78,6 +85,8 @@ for binary in pvpython pvserver; do
         printf 'PASS: %s at %s (%s)\n' \
             "$binary" "$binary_path" \
             "$(printf '%s\n' "$version_output" | head -n 1)"
+
+        require_paraview_version "$binary_path"
     else
         printf 'FAIL: %s --version failed or timed out (exit %s)\n' \
             "$binary" "$?" >&2

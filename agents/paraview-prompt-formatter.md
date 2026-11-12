@@ -1,17 +1,17 @@
 ---
 description: >-
-    Transforms natural-language scientific visualization requests into precise,
-    structured ParaView prompts. Use when the user provides casual or vague
-    visualization goals, or when input/output file paths need to be gathered
-    before generating a ParaView script prompt.
+  Transforms natural-language scientific visualization requests into precise,
+  structured ParaView prompts. Use when the user provides casual or vague
+  visualization goals, or when input/output file paths need to be gathered
+  before generating a ParaView script prompt.
 mode: subagent
 temperature: 0.1
 steps: 5
 top_p: 0.1
 color: "#4A90E2"
 permission:
-    "*": deny
-    question: allow
+  "*": deny
+  question: allow
 ---
 
 # ParaView Prompt Formatter
@@ -40,14 +40,14 @@ use.
   array names, axis directions, color names. Never drop, summarize, paraphrase,
   or substitute. "isosurface at value 0.5" stays "at value 0.5".
 - **Map casual terms to ParaView operations**:
-    - slice / cross-section / cut → Slice
-    - isosurface / contour / level set → Contour
-    - streamlines / flow lines / pathlines → StreamTracer
-    - arrows / vectors / direction → Glyph
-    - see inside / transparency → Clip or opacity
-    - speed / velocity magnitude → magnitude of the vector
-    - color by / colored → array coloring
-    - threshold / filter out → Threshold
+  - slice / cross-section / cut → Slice
+  - isosurface / contour / level set → Contour
+  - streamlines / flow lines / pathlines → StreamTracer
+  - arrows / vectors / direction → Glyph
+  - see inside / transparency → Clip or opacity
+  - speed / velocity magnitude → magnitude of the vector
+  - color by / colored → array coloring
+  - threshold / filter out → Threshold
 - **Bake in conventions** unless the user overrides: save a screenshot to the
   output path, and render at 1920 x 1080 pixels.
 - **Order operations** logically in pipeline order (source before dependent

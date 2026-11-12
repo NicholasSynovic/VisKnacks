@@ -29,6 +29,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 [[ -r "$DIR/optparse.bash" ]] || error 'Missing optparse.bash'
 source "$DIR/optparse.bash"
+[[ -r "$DIR/version-check.bash" ]] || error 'Missing version-check.bash'
 default_timeout=180
 [[ "$MODE" != discovery ]] || default_timeout=30
 optparse.define short=u long=ollama-url variable=ollama_url default=http://127.0.0.1:11434 desc="Direct Ollama server root"
@@ -64,11 +65,19 @@ python_bin="$(type -P -- "$python_bin" || true)"
 [[ -n "$python_bin" && -x "$python_bin" ]] || error 'Python executable not found'
 [[ "$binary" == /* ]] || binary="$PWD/$binary"
 [[ "$python_bin" == /* ]] || python_bin="$PWD/$python_bin"
+# The tests pin exact tool versions; reject any other release early.
+# shellcheck disable=SC1090
+source "$DIR/version-check.bash"
+require_opencode_version "$binary"
 if [[ -z "$package_dir" ]]; then package_dir="$DIR/../../mcp/pvpython-renderer"; fi
 [[ -d "$package_dir" ]] || error 'Renderer package missing; use --package-dir'
 package_dir="$(cd -- "$package_dir" && pwd)"
 [[ -f "$package_dir/pvpython_renderer/main.py" ]] || error 'Missing pvpython_renderer/main.py'
 "$python_bin" -c 'import mcp' || error 'Selected Python cannot import mcp'
+# The tests pin exact tool versions; reject any other release early.
+# shellcheck disable=SC1090
+source "$DIR/version-check.bash"
+require_mcp_version "$python_bin"
 if [[ "$MODE" != discovery ]]; then
     for dep in pvpython pvserver; do command -v "$dep" >/dev/null || error "Missing $dep on PATH"; done
 fi
@@ -77,7 +86,8 @@ renderer_worker() {
     set -euo pipefail
     SECONDS=0
     local mode="$1" binary="$2" py="$3" package="$4" dir="$5" root="$6" budget="$7" ollama="$8" model="$9"
-    local stage='' port='' oc_url='' session='' finished=false http='' marker='' tool='pvpython_renderer_execute_code'
+    local stage='' port='' oc_url='' session='' http='' marker='' tool='pvpython_renderer_execute_code'
+    local oc_password='' http_code='' turn_finished=false active_seen=false active='' grace_polls=0
     declare -g MCP_SERVER_PID='' OC_PID='' REQUEST_PID=''
     source "$dir/mcp_client.bash"
     worker_cleanup() {
@@ -102,7 +112,7 @@ renderer_worker() {
     phase() { stage="$1"; printf '%s\n' "$stage" > "$root/stage"; printf 'INFO: [%ss] %s\n' "$SECONDS" "$stage"; }
     api() {
         local method="$1" path="$2" dest="$3" body="${4:-}"
-        local -a a=(--disable --silent --show-error --fail --noproxy '*' --globoff --connect-timeout 2 --max-time "$budget" --request "$method" --output "$dest")
+        local -a a=(--disable --silent --show-error --fail --noproxy '*' --globoff --connect-timeout 2 --max-time "$budget" --request "$method" --user "opencode:$oc_password" --output "$dest")
         [[ -z "$body" ]] || a+=(--header 'Content-Type: application/json' --data-binary "@$body")
         curl "${a[@]}" "$oc_url$path"
     }
@@ -133,6 +143,7 @@ renderer_worker() {
         }}
     }' > "$root/oc/opencode.json"
     phase 'Start isolated OpenCode server'
+    oc_password="pw-$(cat /proc/sys/kernel/random/uuid)"
     (
         cd -- "$root/oc/work"
         exec setsid env -i "PATH=$PATH" "HOME=$root/oc/home" \
@@ -140,6 +151,7 @@ renderer_worker() {
             "XDG_CACHE_HOME=$root/oc/cache" "XDG_STATE_HOME=$root/oc/state" \
             "TMPDIR=$root/oc" TERM=dumb NO_COLOR=1 'NO_PROXY=*' 'no_proxy=*' \
             "OPENCODE_CONFIG=$root/oc/opencode.json" "OPENCODE_CONFIG_DIR=$root/oc/config/opencode" \
+            "OPENCODE_SERVER_PASSWORD=$oc_password" \
             OPENCODE_DISABLE_PROJECT_CONFIG=true OPENCODE_DISABLE_CLAUDE_CODE=true \
             OPENCODE_DISABLE_EXTERNAL_SKILLS=true OPENCODE_DISABLE_DEFAULT_PLUGINS=true OPENCODE_PURE=true \
             OPENCODE_DISABLE_AUTOUPDATE=true OPENCODE_DISABLE_MODELS_FETCH=true \
@@ -151,14 +163,36 @@ renderer_worker() {
     while :; do
         kill -0 "$OC_PID" 2>/dev/null || fail 'OpenCode exited during startup'
         oc_url="$(grep -Eo 'http://127\.0\.0\.1:[0-9]+' "$root/opencode.log" | tail -n 1 || true)"
-        if [[ -n "$oc_url" ]] && api GET /global/health "$root/health.json" 2>"$root/readiness.stderr"; then
-            if jq -e '.healthy == true' "$root/health.json" >/dev/null; then break; fi
+        if [[ -n "$oc_url" ]]; then
+            # OpenCode V2 serves readiness at /api/info (no "healthy"
+            # field) and requires basic auth with the server password.
+            http_code="$(curl --disable --silent --show-error --noproxy '*' \
+                --globoff --connect-timeout 2 --max-time "$budget" \
+                --user "opencode:$oc_password" --write-out '%{http_code}' \
+                --output "$root/health.json" "$oc_url/api/info" \
+                2>"$root/readiness.stderr" || true)"
+            case "$http_code" in
+                200) jq -e '.version | type == "string" and length > 0' "$root/health.json" >/dev/null 2>&1 && break ;;
+                401|403) fail "OpenCode server rejected credentials (HTTP $http_code)" ;;
+            esac
         fi
         sleep 0.2
     done
     phase 'Verify OpenCode MCP connection'
-    api GET /mcp "$root/mcp-status.json" || fail 'OpenCode MCP status request failed'
-    jq -e '.pvpython_renderer.status == "connected"' "$root/mcp-status.json" >/dev/null || fail 'OpenCode did not connect to renderer MCP'
+    # V2 populates the MCP status asynchronously after startup, so poll
+    # for the renderer connection instead of reading it once.
+    mcp_deadline=$((SECONDS + 15))
+    while :; do
+        api GET /api/mcp "$root/mcp-status.json" || fail 'OpenCode MCP status request failed'
+        if jq -e 'any(.data[]; .name == "pvpython_renderer" and .status.status == "connected")' \
+            "$root/mcp-status.json" >/dev/null 2>&1; then
+            break
+        fi
+        if ((SECONDS >= mcp_deadline)); then
+            fail 'OpenCode did not connect to renderer MCP'
+        fi
+        sleep 0.5
+    done
     # An independent protocol request validates the upstream schema, not
     # an assumed OpenCode experimental-tool registry representation.
     phase 'Verify upstream execute_code schema'
@@ -184,35 +218,58 @@ renderer_worker() {
     printf '%s\n' "$marker" > "$root/marker.txt"
     "$py" "$dir/renderer-assert.py" make-code "$mode" "$root" "$marker"
     printf '{"title":"OpenCode renderer integration"}\n' > "$root/create-session.json"
-    api POST /session "$root/session.json" "$root/create-session.json" || fail 'Cannot create session'
-    session="$(jq -er '.id | select(type == "string" and length>0)' "$root/session.json")" || fail 'Missing session ID'
-    jq -n --rawfile code "$root/code.py" '{agent:"renderer-integration",parts:[{type:"text",text:("Call pvpython_renderer_execute_code exactly once with the following code unchanged:\n\n"+$code)}]}' > "$root/prompt.json"
+    api POST /api/session "$root/session.json" "$root/create-session.json" || fail 'Cannot create session'
+    session="$(jq -er '.data.id | select(type == "string" and length>0)' "$root/session.json")" || fail 'Missing session ID'
+    jq -n --rawfile code "$root/code.py" '{agent:"renderer-integration",text:("Call pvpython_renderer_execute_code exactly once with the following code unchanged:\n\n"+$code)}' > "$root/prompt.json"
     phase 'Wait for actual renderer tool execution'
-    api POST "/session/$session/message" "$root/prompt-response.json" "$root/prompt.json" 2>"$root/prompt.stderr" &
+    api POST "/api/session/$session/prompt" "$root/prompt-response.json" "$root/prompt.json" 2>"$root/prompt.stderr" &
     REQUEST_PID=$!
     while :; do
         kill -0 "$OC_PID" 2>/dev/null || fail 'OpenCode exited'
         kill -0 "$MCP_SERVER_PID" 2>/dev/null || fail 'Renderer exited'
         if [[ -n "$REQUEST_PID" ]] && ! kill -0 "$REQUEST_PID" 2>/dev/null; then
-            if wait "$REQUEST_PID"; then REQUEST_PID=''; finished=true; else REQUEST_PID=''; fail 'Prompt HTTP request failed'; fi
+            if wait "$REQUEST_PID"; then REQUEST_PID=''; else REQUEST_PID=''; fail 'Prompt HTTP request failed'; fi
         fi
-        api GET "/session/$session/message" "$root/messages.json" || fail 'Cannot read session messages'
-        jq -e 'type == "array"' "$root/messages.json" >/dev/null || fail 'Malformed messages'
-        jq '[.[] | select(.info.role=="assistant") | .parts[] | select(.type=="tool")]' "$root/messages.json" > "$root/tool-parts.json"
-        jq -e --arg tool "$tool" 'all(.[];.tool==$tool)' "$root/tool-parts.json" >/dev/null || fail 'Unexpected tool invocation'
+        api GET "/api/session/$session/message?limit=200" "$root/messages.json" || fail 'Cannot read session messages'
+        jq -e '.data | type == "array"' "$root/messages.json" >/dev/null || fail 'Malformed messages'
+        # Turn-completion barrier: the V2 prompt endpoint admits
+        # asynchronously, and a held idle-wait connection can be
+        # dropped mid-run (which aborts the tool), so poll the
+        # active-session map instead. The session is listed while its
+        # agent loop runs and disappears when it goes idle; conclude
+        # only after having seen it active. If it was never seen
+        # active (an instant error can come and go between polls),
+        # conclude only when the projection shows a terminal
+        # assistant turn.
+        api GET /api/session/active "$root/active.json" || fail 'Cannot read active sessions'
+        active="$(jq -r --arg s "$session" '.data | has($s)' "$root/active.json" 2>/dev/null || true)"
+        if [[ "$active" == "true" ]]; then
+            active_seen=true
+        elif [[ "$active_seen" == true ]]; then
+            turn_finished=true
+        elif jq -e '(((.data // [])[] | select(.type=="assistant") | (.finish != null or .error != null)) // false)' "$root/messages.json" >/dev/null 2>&1; then
+            turn_finished=true
+        fi
+        jq '[.data[] | select(.type=="assistant") | .content[]? | select(.type=="tool")]' "$root/messages.json" > "$root/tool-parts.json"
+        jq -e --arg tool "$tool" 'all(.[];.name==$tool)' "$root/tool-parts.json" >/dev/null || fail 'Unexpected tool invocation'
         jq -e 'length <= 1' "$root/tool-parts.json" >/dev/null || fail 'Multiple tool invocations'
         if jq -e 'any(.[];.state.status=="error")' "$root/tool-parts.json" >/dev/null; then fail 'Renderer tool failed'; fi
         if jq -e 'any(.[];.state.status=="completed")' "$root/tool-parts.json" >/dev/null; then
             phase 'Validate tool input and renderer result'
             "$py" "$dir/renderer-assert.py" result "$mode" "$root" "$marker" || fail 'Renderer result validation failed'
             # Report assistant errors even if a completed part exists.
-            jq -e 'all(.[]; .info.role!="assistant" or .info.error==null)' "$root/messages.json" >/dev/null || fail 'Assistant error'
+            jq -e 'all(.data[]; .type!="assistant" or .error==null)' "$root/messages.json" >/dev/null || fail 'Assistant error'
             printf 'PASS: OpenCode -> renderer -> pvpython %s verified\n' "$mode"
             printf 'INFO: Worker elapsed: %ss\n' "$SECONDS"
             return 0
         fi
-        if jq -e 'any(.[];.info.role=="assistant" and .info.error!=null)' "$root/messages.json" >/dev/null; then fail 'Assistant error'; fi
-        [[ "$finished" == false ]] || fail 'Model finished without a completed renderer tool call'
+        if jq -e 'any(.data[]; .type=="assistant" and .error!=null)' "$root/messages.json" >/dev/null; then fail 'Assistant error'; fi
+        if [[ "$turn_finished" == true ]]; then
+            # The idle barrier fired; allow the message projection a
+            # short grace period to catch up before declaring failure.
+            ((grace_polls += 1))
+            if ((grace_polls > 10)); then fail 'Model finished without a completed renderer tool call'; fi
+        fi
         sleep 0.2
     done
 }
@@ -229,7 +286,7 @@ if [[ "$status" == 124 || "$status" == 137 ]]; then
     printf 'FAIL: Deadline exceeded during: %s\n' "$(cat "$sandbox/stage" 2>/dev/null || true)" >&2
     status=124
 fi
-for name in opencode.log renderer.log mcp-status.json prompt.stderr prompt-response.json tool-parts.json renderer-result.json; do
+for name in opencode.log renderer.log mcp-status.json prompt.stderr prompt-response.json active.json tool-parts.json renderer-result.json; do
     if [[ -s "$sandbox/$name" ]]; then printf '\n--- %s (last 30 lines) ---\n' "$name" >&2; tail -n 30 -- "$sandbox/$name" >&2; fi
 done
 exit "$status"

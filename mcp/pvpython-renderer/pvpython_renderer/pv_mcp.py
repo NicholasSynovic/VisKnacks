@@ -194,7 +194,7 @@ def _spawn_runner(
             stdout_buffer,
             stderr_buffer,
             [],
-            f"Error launching pv_runner: {str(e)}",
+            f"Error launching pv_runner: {e!s}",
         )
 
     logger.info(
@@ -259,7 +259,7 @@ def _spawn_pvserver_reverse(
             stdout_buffer,
             stderr_buffer,
             [],
-            f"Error launching pvserver: {str(e)}",
+            f"Error launching pvserver: {e!s}",
         )
 
     logger.info(
@@ -309,7 +309,7 @@ def _terminate_proc(
                 proc.kill()
                 proc.wait()
     except Exception as e:  # pragma: no cover - teardown failure
-        logger.error(f"[call {timestamp}] Error terminating {name}: {str(e)}")
+        logger.error(f"[call {timestamp}] Error terminating {name}: {e!s}")
 
     # Reader threads exit once the pipes hit EOF (after the process dies).
     for t in threads:
@@ -359,7 +359,7 @@ def _write_call_logs(
             f"=== stderr ===\n{pvserver_stderr}\n"
         )
     except Exception as e:  # pragma: no cover - logging is best-effort
-        logger.error(f"Error writing per-call logs: {str(e)}")
+        logger.error(f"Error writing per-call logs: {e!s}")
 
 
 # ============================================================================
@@ -521,7 +521,7 @@ def execute_code(code: str) -> dict:
                 )
                 runner_stderr_tail = timeout_note
             except Exception as e:
-                message = f"Error running pv_runner.py: {str(e)}"
+                message = f"Error running pv_runner.py: {e!s}"
                 logger.error(f"[call {timestamp}] {message}")
                 runner_stderr_tail = message
     finally:
@@ -609,4 +609,4 @@ def run(
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:
-        logger.error(f"Error running MCP server: {str(e)}")
+        logger.error(f"Error running MCP server: {e!s}")

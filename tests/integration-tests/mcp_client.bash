@@ -18,11 +18,14 @@
 # ---------------------------------------------------------------------------
 
 # mcp_http_code <url> [max_time]
-# Bare GET request; prints the HTTP status code, or an empty string when
-# the transport fails. Used for server readiness polling.
+# Bare GET request; prints the final HTTP status code after following
+# redirects (some MCP server builds answer /mcp with a 307 to /mcp/),
+# or an empty string when the transport fails. Used for server
+# readiness polling.
 mcp_http_code() {
     local url="$1" max_time="${2:-2}"
-    curl --disable --silent --output /dev/null --write-out '%{http_code}' \
+    curl --disable --silent --location --output /dev/null \
+        --write-out '%{http_code}' \
         --noproxy '*' --globoff \
         --connect-timeout 1 --max-time "$max_time" "$url" 2>/dev/null || true
 }
@@ -44,15 +47,19 @@ mcp_header() {
 }
 
 # mcp_post <session_id> <max_time> <url> <json_file> <hdr_out> <body_out>
-# POST a JSON-RPC document to the streamable-http endpoint. Prints the HTTP
-# status code on stdout; returns the curl exit code. An empty <session_id>
-# omits the mcp-session-id request header.
+# POST a JSON-RPC document to the streamable-http endpoint. Follows
+# redirects; curl re-issues the POST with its body for 307/308
+# responses, so server builds that redirect /mcp to /mcp/ stay
+# transparent. Prints the final HTTP status code on stdout; returns the
+# curl exit code. Response headers are the final hop's. An empty
+# <session_id> omits the mcp-session-id request header.
 mcp_post() {
     local session="$1" max_time="$2" url="$3" json_file="$4"
     local hdr_out="$5" body_out="$6"
     local -a args=(
         --noproxy '*'
         --globoff
+        --location
         --connect-timeout 2
         --max-time "$max_time"
         --request POST
@@ -189,9 +196,9 @@ mcp_stop_server() {
 }
 
 # mcp_await_ready <host> <port> <server_pid> <max_seconds>
-# Poll until the server answers an HTTP request on /mcp with a non-3xx
-# status (redirects do not count as readiness). Returns 1 when the
-# server process dies or the deadline expires first.
+# Poll until the server answers an HTTP request on /mcp with a final
+# (redirect-followed) status. Returns 1 when the server process dies
+# or the deadline expires first.
 mcp_await_ready() {
     local host="$1" port="$2" pid="$3" max_seconds="$4"
     local code=""

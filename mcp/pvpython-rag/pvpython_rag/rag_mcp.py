@@ -17,9 +17,8 @@ from pathlib import Path
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
-
 from fastmcp import FastMCP
+from sentence_transformers import SentenceTransformer
 
 # Embedding configuration. These MUST match the values used to build the
 # indexes in ``pvpython_rag.main`` (same model, sequence length, and

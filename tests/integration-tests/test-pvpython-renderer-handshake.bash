@@ -136,6 +136,11 @@ python_path="$(type -P -- python || true)"
 "$python_path" -c 'import mcp' >/dev/null 2>&1 ||
     setup_error "python cannot import the mcp package"
 
+# The tests pin exact tool versions; reject any other release early.
+# shellcheck disable=SC1090
+source "$SCRIPT_DIR/version-check.bash"
+require_mcp_version "$python_path"
+
 if [[ "$port" -eq 0 ]]; then
     port="$(
         "$python_path" -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'

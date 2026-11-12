@@ -19,6 +19,7 @@ fail_config() {
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PARSER="${SCRIPT_DIR}/optparse.bash"
+VERSIONS="${SCRIPT_DIR}/versions.env"
 
 [[ -r "$PARSER" ]] || fail_config "Cannot read parser: $PARSER"
 source "$PARSER"
@@ -54,6 +55,14 @@ for command_name in curl jq; do
     command -v "$command_name" >/dev/null 2>&1 ||
         fail_config "Required command not found: $command_name"
 done
+
+# The tests pin exact tool versions; this stage asserts Ollama's.
+[[ -r "$VERSIONS" ]] || fail_config "Cannot read versions file: $VERSIONS"
+# shellcheck disable=SC1091
+source "$VERSIONS"
+[[ "${OLLAMA_REQUIRED_VERSION:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+    fail_config \
+        "Invalid OLLAMA_REQUIRED_VERSION: ${OLLAMA_REQUIRED_VERSION:-unset}"
 
 # Validate length before arithmetic to avoid overflow on oversized input.
 [[ "$port" =~ ^[0-9]{1,5}$ ]] ||
@@ -126,6 +135,11 @@ if version="$(
 )"; then
     printf 'PASS: Ollama API is responding at %s (version %s)\n' \
         "$url" "$version"
+
+    if [[ "$version" != "$OLLAMA_REQUIRED_VERSION" ]]; then
+        fail_config \
+            "Ollama version mismatch: found $version, integration tests require exactly $OLLAMA_REQUIRED_VERSION (pinned in $VERSIONS)"
+    fi
 else
     printf 'FAIL: %s did not return valid Ollama version JSON\n' \
         "$url" >&2

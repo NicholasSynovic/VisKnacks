@@ -141,6 +141,11 @@ python_path="$(type -P -- python || true)"
 "$python_path" -c 'import mcp' >/dev/null 2>&1 ||
     setup_error "python cannot import the mcp package"
 
+# The tests pin exact tool versions; reject any other release early.
+# shellcheck disable=SC1090
+source "$SCRIPT_DIR/version-check.bash"
+require_mcp_version "$python_path"
+
 command -v pvpython >/dev/null 2>&1 ||
     setup_error "pvpython not on PATH; run test-pvpython-env.bash first"
 command -v pvserver >/dev/null 2>&1 ||

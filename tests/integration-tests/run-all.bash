@@ -184,6 +184,38 @@ ollama_port=$((10#$ollama_port))
     setup_error "Ollama URL port must be between 1 and 65535: $ollama_url"
 
 # ============================================================================
+# Validate pinned tool versions
+# ============================================================================
+
+# Stage 1 always exercises Ollama, so its version is checked
+# unconditionally; OpenCode is only required when its stages run.
+[[ -r "$SCRIPT_DIR/version-check.bash" ]] ||
+    setup_error "Cannot read version checker: $SCRIPT_DIR/version-check.bash"
+
+source "$SCRIPT_DIR/version-check.bash"
+
+require_ollama_version "$ollama_url"
+
+if [[ "$skip_opencode" != true ]]; then
+    opencode_preflight="$(type -P -- "$opencode_binary" || true)"
+    [[ -n "$opencode_preflight" ]] ||
+        setup_error "OpenCode executable not found: $opencode_binary"
+    require_opencode_version "$opencode_preflight"
+fi
+
+if [[ "$skip_mcp" != true ]]; then
+    renderer_python="$(type -P -- "$python_binary" || true)"
+    [[ -n "$renderer_python" ]] ||
+        setup_error "Python interpreter not found: $python_binary"
+    require_mcp_version "$renderer_python"
+
+    pvpython_preflight="$(type -P -- pvpython || true)"
+    [[ -n "$pvpython_preflight" ]] ||
+        setup_error "pvpython not found on PATH"
+    require_paraview_version "$pvpython_preflight"
+fi
+
+# ============================================================================
 # Build the per-test argument lists
 # ============================================================================
 

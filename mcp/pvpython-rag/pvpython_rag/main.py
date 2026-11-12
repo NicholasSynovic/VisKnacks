@@ -169,7 +169,9 @@ def build_faiss_index(embeddings: np.ndarray) -> faiss.IndexFlatIP:
     return index
 
 
-def build_index(input_dir: str, output_dir: str, tag: str | None = None) -> None:
+def build_index(
+    input_dir: str, output_dir: str, tag: str | None = None
+) -> None:
     """
     Extract, embed, index, and persist ParaView function records.
 

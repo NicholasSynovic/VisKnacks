@@ -13,6 +13,7 @@ import argparse
 import ast
 import sys
 from pathlib import Path
+
 import pandas as pd
 
 # ---------------------------------------------------------------------------
@@ -355,7 +356,9 @@ def _extract_from_file(
             results.append(_make_record(fqn, node))
 
         elif isinstance(node, ast.ClassDef):
-            class_prefix = f"{module_fqn}.{node.name}" if module_fqn else node.name
+            class_prefix = (
+                f"{module_fqn}.{node.name}" if module_fqn else node.name
+            )
             _visit_class(node, prefix=class_prefix)
 
     return results

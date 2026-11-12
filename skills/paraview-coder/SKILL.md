@@ -1,25 +1,25 @@
 ---
 name: paraview-coder
 description: >-
-    Writes complete, headless pvpython (ParaView) scripts from a natural-language
-    visualization request and saves a screenshot of the result. Use this whenever
-    the user wants to visualize a scientific dataset, mentions ParaView, pvpython,
-    paraview.simple, VTK, or asks to render/screenshot a .vtk, .vtu, .vtp, .vtr,
-    .ex2/Exodus, or IOSS file. Triggers on requests for isosurfaces/contours,
-    slices, clips, glyphs, streamlines/stream tracers, tubes, volume rendering,
-    wireframes, calculators, plot-over-line / chart views, multi-view comparisons,
-    color maps / transfer functions, scalar bars, camera framing, or animations
-    even when the user does not say the words "ParaView" or "script". Reach for it
-    any time the deliverable is Python code that drives ParaView to produce an
-    image of data.
+  Writes complete, headless pvpython (ParaView) scripts from a natural-language
+  visualization request and saves a screenshot of the result. Use this whenever
+  the user wants to visualize a scientific dataset, mentions ParaView, pvpython,
+  paraview.simple, VTK, or asks to render/screenshot a .vtk, .vtu, .vtp, .vtr,
+  .ex2/Exodus, or IOSS file. Triggers on requests for isosurfaces/contours,
+  slices, clips, glyphs, streamlines/stream tracers, tubes, volume rendering,
+  wireframes, calculators, plot-over-line / chart views, multi-view comparisons,
+  color maps / transfer functions, scalar bars, camera framing, or animations
+  even when the user does not say the words "ParaView" or "script". Reach for it
+  any time the deliverable is Python code that drives ParaView to produce an
+  image of data.
 license: BSD-3-Clause. LICENSE at the repository root has complete terms.
 compatibility: >-
-    Requires pvpython (ParaView 5.10+), headless/offscreen mode, and an agent
-    able to call the Task tool. The paraview.simple API drifts between
-    versions; adapt if a call is rejected.
+  Requires pvpython (ParaView 5.10+), headless/offscreen mode, and an agent
+  able to call the Task tool. The paraview.simple API drifts between
+  versions; adapt if a call is rejected.
 metadata:
-    author: nicholas-synovic
-    version: "1.0"
+  author: nicholas-synovic
+  version: "1.0"
 ---
 
 # ParaView script generation (pvpython)
